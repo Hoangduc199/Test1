@@ -1,0 +1,1087 @@
+(function ($) {
+    function LHMediaPoster() {
+        this.fire = function () {
+            var self = this;
+
+            this._wrap = $('<div />');
+
+            $.wrapContent(this._wrap, {key: 'media_postForm'});
+            $.ajax({
+                url: linkhay_post_url + '/media/post/form',
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                type: 'post',
+                success: function (response) {
+                    if (response.result === 'OK') {
+                        $.wrapContent(response.data, {key: 'media_postForm', close_callback: function () {
+                                if (self._wrap.attr('closing') !== '1') {
+                                    self._wrap.attr('closing', 1);
+                                    self._wrap.trigger('close');
+                                }
+                            }});
+                        self._wrap = $('#mediaV2_post_frm');
+                        self._setup();
+                    } else {
+                        self.close();
+                    }
+                }
+            });
+        };
+
+        this.close = function () {
+            $.unwrapContent('media_postForm');
+        };
+
+        this._setup = function () {
+            var self = this;
+
+            this._post_key = this._wrap.find('#mediaV2_post_key').val();
+
+            this._content_wrap = this._wrap.find('#mediaV2_post_content');
+
+            this._wrap.find('.mediaV2-detail-close-btn').click(function () {
+                self.close();
+            });
+
+            this._wrap.find('#mediaV2_post_title').osc_nodeTextEditor();
+            this._wrap.find('#mediaV2_post_desc').osc_nodeTextEditor();
+
+            this._setupUploader(this._wrap.find('#mediaV2_post_uploader'));
+
+            this._wrap.find('#mediaV2_poster_cancel_btn').click(function () {
+                self.close();
+            });
+            this._wrap.find('#mediaV2_poster_save_btn').click(function () {
+                self._save();
+            });
+
+            this._wrap.find('.url-uploader').click(function () {
+                self._renderUrlUploader();
+            });
+
+            this._wrap.find('#mediaV2_post_title')[0].focus();
+        };
+
+        this._save = function () {
+            var submit_btn = this._wrap.find('#mediaV2_poster_save_btn');
+
+            if (submit_btn.attr('disabled') === 'disabled') {
+                return;
+            }
+
+            if (this._content_wrap.find('.upload-holding')[0] || this._content_wrap.find('.uploading-progress')[0]) {
+                alert('Xin hãy chờ upload xong hẳn các file');
+                return;
+            }
+
+            var data = {
+                title: this._wrap.find('#mediaV2_post_title').osc_nodeTextEditor('getcontent'),
+                desc: this._wrap.find('#mediaV2_post_desc').osc_nodeTextEditor('getcontent'),
+                content: [],
+                cat_id: this._wrap.find('#media_cat_selector').val(),
+                license_flag_media: 0
+            };
+
+            data.is_sensitive_16 = $('#is-sensitive-16')[0].checked ? 1 : 0;
+            data.is_sensitive_authentic = $('#is-sensitive-authentic')[0].checked ? 1 : 0;
+            data.is_sensitive_just_kidding = $('#is-sensitive-just-kidding')[0].checked ? 1 : 0;
+
+            if (!data.title) {
+                alert('Xin cung cấp tiêu đề cho media');
+                return;
+            }
+
+            this._content_wrap.find('li').each(function () {
+                var row_items = [];
+
+                $(this).find('> div').each(function () {
+                    var item = $(this);
+                    row_items.push({
+                        file: item.attr('content-key'),
+                        autoplay: (item.find('[autoplay]')[0] && parseInt(item.attr('playing')) === 1) ? 1 : 0
+                    });
+                });
+
+                if (row_items.length > 0) {
+                    data.content.push(row_items);
+                }
+            });
+
+            if (data.content.length < 1) {
+                alert('Bạn chưa upload ảnh(hoặc video) cho bài viết');
+                return;
+            }
+
+            if(localStorage.getItem("check_license_media_" + $(".name-user-login").html()) == null && !this._wrap.find('input.mediaV2-checkbox-permission').is(':checked')){
+                localStorage.setItem("check_license_media_"+$(".name-user-login").html(),1);
+                this.popup_check_license();
+                return;
+            }
+
+            if (this._wrap.find('input.mediaV2-checkbox-permission').is(':checked')){
+                data.license_flag_media  = 1;
+            }
+
+            submit_btn.attr('disabled', 'disabled');
+
+            $.ajax({
+                url: linkhay_post_url + '/media/post/save?pk=' + this._post_key,
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                type: 'post',
+                data: data,
+                success: function (response) {
+                    if (response.result === 'OK') {
+                        window.location = response.data;
+                    } else {
+                        submit_btn.removeAttr('disabled');
+                        alert(response.message);
+                    }
+                }
+            });
+
+            //uploading-progress
+        };
+
+        this.popup_check_license = function (){
+            var self = this;
+
+            var win = null;
+
+            var container = $('<div />').addClass('LHV2-license-popup').width(500);
+
+            var content_popup = $('<div />').addClass('content-popup').appendTo(container);
+
+            var content;
+            content = '<div class="license-icon"><div class="license-image"><img src="' + linkhay_url + '/resource/template/image/default/link/canhbao.png"></div></div>';
+            content += '<div class="license-title">Bạn chưa đánh dấu xác nhận bạn có quyền khai thác nội dung này.</div>';
+            content += '<div class="license-label">Bạn sẽ không được nhận token từ nội dung này.</div>';
+
+            $('<div />').addClass('license-content').html(content).appendTo(content_popup);
+
+            var action_bar = $('<div />').addClass('license-footer').appendTo(container);
+
+            $('<span />').addClass('license-btn').html('Quay lại').click(function () {
+                win.destroy();
+                $(".mediaV2-warning").css("display","block");
+            }).appendTo(action_bar);
+
+            $('<span />').addClass('license-btn-continue license-btn').html('Xác nhận gửi').click(function () {
+                win.destroy();
+                self._save();
+            }).appendTo(action_bar);
+
+            $.wrapContent($('<div />'), {key: 'popupLicense', close_callback: function () {
+                    win.destroy(null, true);
+                }});
+
+            win = $.create_license({
+                destroy_hook: function () {
+                    $.unwrapContent('popupLicense');
+                },
+                content: container
+            });
+        };
+
+        this._updateTempImgURL = function (file_id, file, is_gif) {
+            var self = this;
+
+            var reader = new FileReader();
+
+            reader.onload = function (e) {
+                $('<img />').load(function () {
+                    var item = self._content_wrap.find('[file-id="' + file_id + '"]');
+
+                    if (!item[0]) {
+                        return;
+                    }
+
+                    $(this).unbind();
+
+                    var img_url = this.src;
+
+                    if (is_gif) {
+                        var c = document.createElement('canvas');
+
+                        c.width = this.width;
+                        c.height = this.height;
+
+                        c.getContext('2d').drawImage(this, 0, 0, this.width, this.height);
+
+                        img_url = c.toDataURL('image/gif');
+                    }
+
+                    item.attr('data-orig-w', this.width).attr('data-orig-h', this.height).find('img').attr('src', img_url);
+
+                    self._resizeImageListRow(item.parent()[0]);
+                }).attr('src', e.target.result);
+            };
+
+            reader.readAsDataURL(file);
+        };
+
+        this._listenerUploaderAddFile = function (file_id, file, file_name) {
+            var extension = file_name.replace(/^.+\.([^\.]+)$/i, '$1').toLowerCase();
+
+            var is_video = ['png', 'gif', 'jpg', 'jpeg'].indexOf(extension) < 0;
+
+            var canvas = document.createElement('canvas');
+
+            canvas.width = 1000;
+            canvas.height = 600;
+
+            var ctx = canvas.getContext('2d');
+            ctx.globalAlpha = 0;
+            ctx.fillStyle = 'rgba(0,0,0,.05)';
+            ctx.fillRect(0, 0, 1000, 600);
+
+            var image = $('<img />').attr('src', canvas.toDataURL('image/png'));
+
+            if (is_video) {
+                this._wrap.find('#mediaV2_post_uploader').hide();
+                this._content_wrap.find('ul').remove();
+
+                image.addClass('thumb');
+            }
+
+            this._addMediaContentItem(is_video ? 'video' : 'image', image[0], {width: 1000, height: 600});
+
+            image.parent().addClass('upload-holding').attr('file-id', file_id);
+
+            if (!is_video) {
+                this._updateTempImgURL(file_id, file, extension === 'gif');
+            }
+        };
+
+        this._listenerUploaderUploadStart = function (file_id) {
+            var item = this._content_wrap.find('[file-id="' + file_id + '"]');
+
+            if (!item[0]) {
+                return;
+            }
+
+            item.removeClass('upload-holding').addClass('uploading-progress');
+            item.append($('<div />').addClass('uploading-progress-bar').append($('<div />')));
+        };
+
+        this._listenerUploaderUploadProgress = function (file_id, uploaded_percent) {
+            var item = this._content_wrap.find('[file-id="' + file_id + '"]');
+
+            if (!item[0]) {
+                return;
+            }
+
+            item.find('.uploading-progress-bar > div').css('width', uploaded_percent + '%');
+        };
+
+        this._listenerUploaderUploadComplete = function (pointer, file_id, response) {
+            pointer.success = false;
+
+            var item = this._content_wrap.find('[file-id="' + file_id + '"]');
+
+            if (!item[0]) {
+                return;
+            }
+
+            item.removeAttr('file-id').removeClass('uploading-progress').find('.uploading-progress-bar').remove();
+
+            eval('response = ' + response);
+
+            if (response.result === 'OK') {
+                item.attr('content-key', response.data.key);
+
+                item.attr('item-type', response.data.type);
+
+                if (response.data.type === 'video') {
+                    this._wrap.find('#mediaV2_post_uploader').hide();
+
+                    if (item.closest('ul').find('> li > div').length > 1) {
+                        var container_li = item.closest('li');
+
+                        container_li.parent().find('> li').each(function () {
+                            if (this !== container_li[0]) {
+                                $(this).remove();
+                            }
+                        });
+
+                        container_li.find('> div').each(function () {
+                            if (this !== item[0]) {
+                                $(this).remove();
+                            }
+                        });
+                    }
+
+                    item.addClass('V2-media-video');
+
+                    item.find('img').addClass('thumb').attr('src', response.data.thumb_url);
+
+                    var video = $('<video />').appendTo(item);
+
+                    video[0].volume = 0;
+                    video[0].muted = true;
+
+                    $('<source />').attr('type', 'video/mp4').attr('src', response.data.url).appendTo(video);
+
+                    this._addAutoplayChecker(item[0], true);
+                } else {
+                    item.attr('data-orig-w', response.data.width).attr('data-orig-h', response.data.height).find('img').attr('src', response.data.url.replace(/^(.+)\.([^\.]+)$/i, '$1.resized' + (response.data.is_animated ? '.cover' : '') + '.$2'));
+
+                    if (response.data.is_animated) {
+                        this._addAutoplayChecker(item[0], true);
+                    }
+
+                    this._resizeImageListRow(item.parent()[0]);
+                }
+            } else {
+                var self = this;
+
+                item.find('img').remove();
+                console.log(response);
+                item.append($('<div />').addClass('error-message').html('<div>ERROR [' + response.data.code + ']</div>' + response.data.message));
+
+                setTimeout(function () {
+                    item.fadeOut({complete: function () {
+                            var row = item.parent()[0];
+                            item.remove();
+                            self._resizeImageListRow(row);
+                        }});
+                }, 5000);
+
+                this._wrap.find('#mediaV2_post_uploader').show();
+            }
+        };
+
+        this._listenerUploaderUploadError = function (file_id, error_code, error_message) {
+            var item = this._content_wrap.find('[file-id="' + file_id + '"]');
+
+            if (!item[0]) {
+                return;
+            }
+
+            this._wrap.find('#mediaV2_post_uploader').show();
+
+            item.removeClass('uploading-progress').find('.uploading-progress-bar').remove();
+
+            item.find('img').remove();
+            item.append($('<div />').addClass('error-message').html('<div>ERROR [' + error_code + ']</div>' + error_message));
+
+            var self = this;
+
+            setTimeout(function () {
+                item.fadeOut({complete: function () {
+                        var row = item.parent()[0];
+                        item.remove();
+                        self._resizeImageListRow(row);
+                    }});
+            }, 5000);
+        };
+
+        this._addMediaContentItem = function (type, image, dim) {
+            var img_list = this._content_wrap.find('ul');
+
+            if (!img_list[0]) {
+                img_list = $('<ul />').prependTo(this._content_wrap);
+            }
+
+            var row = img_list.find('li').last();
+
+            if (!row[0] || row.children().length > 2) {
+                row = $('<li />').appendTo(img_list);
+            }
+
+            $(image).bind('dragstart', function () {
+                return false;
+            });
+
+            if (typeof dim !== 'object' || dim === null) {
+                dim = {width: image.width, height: image.height};
+            }
+
+            var self = this;
+
+            var item = $('<div />').attr('item-type', type).attr('data-orig-w', dim.width).attr('data-orig-h', dim.height).append(image).appendTo(row);
+
+            item.mousedown(function (e) {
+                self._listenerImageItemMousedown(e, this);
+            }).mouseenter(function () {
+                self._listenerImageItemMouseenter(this);
+            }).mouseleave(function () {
+                self._listenerImageItemMouseleave(this);
+            });
+
+            this._resizeImageListRow(row[0]);
+
+            return item[0];
+        };
+
+        this._addAutoplayChecker = function (item, autoplay) {
+            item = $(item);
+
+            var video = item.find('video')[0];
+
+            if (!video) {
+                var cover_url = item.find('img').attr('src');
+                var animated_url = cover_url.replace(/^(.+)\.cover\.([^\.]+)$/i, '$1.$2');
+            }
+
+            item.append($('<ins />').mousedown(function (e) {
+                e.stopPropagation();
+                e.preventDefault();
+
+                var is_playing = item.attr('playing') === '1';
+
+                if (video) {
+                    video.currentTime = 0;
+                    video[is_playing ? 'pause' : 'play']();
+                } else {
+                    item.find('img').attr('src', is_playing ? cover_url : animated_url);
+                }
+
+                if (is_playing) {
+                    item.removeAttr('playing');
+                } else {
+                    item.find('img.thumb').hide();
+                    item.attr('playing', 1);
+                }
+            }).attr('autoplay', 'autoplay'));
+
+            if (autoplay) {
+                item.find('ins').trigger('mousedown');
+            }
+        };
+
+        this._item_reorder_helper = null;
+
+        this._item_reorder_last_win_y = 0;
+        this._item_reorder_scroll_timer = null;
+
+        this._listenerImageItemMousedown = function (e, item) {
+            if (this._item_reorder_helper !== null || e.which !== 1 || this._content_wrap.find('li > div').length < 2) {
+                return false;
+            }
+
+            var self = this;
+
+            item = $(item);
+
+            this._content_wrap.addClass('remove-locked');
+
+            item.data('related-item', item.prev()[0]).data('parent-node', item.parent()[0]).height(item.attr('data-orig-h') * 100 / item.attr('data-orig-w')).width(100);
+
+            item.appendTo(document.body);
+
+            this._item_reorder_helper = item.clone();
+            this._item_reorder_helper.data('item', item);
+
+            this._item_reorder_helper.find('img').bind('dragstart', function () {
+                return false;
+            });
+
+            this._item_reorder_helper.attr('drop-helper', 1);
+
+            this._content_wrap.find('li').each(function () {
+                var li = $(this);
+
+                if (li.children().length < 1) {
+                    li.attr('new-line-helper', 1);
+                    return true;
+                }
+
+                li.append(self._item_reorder_helper.clone().removeAttr('class').attr('drop-helper', 1).empty());
+                self._resizeImageListRow(this);
+
+                if (!li.next('li')[0] || li.next('li').children().length > 0) {
+                    li.after($('<li />').attr('new-line-helper', 1));
+                }
+
+                if (li.is(':first-child')) {
+                    li.before($('<li />').attr('new-line-helper', 1));
+                }
+            });
+
+            item.addClass('mediaV2-poster-image-dragging').swapZIndex();
+
+            this._content_wrap.find('li > div').bind('mousemove.itemReorder', function (e) {
+                self._reorderListenerItemMousemove(e, this);
+            });
+            this._content_wrap.find('li').bind('mouseenter.itemReorder', function () {
+                self._reorderListenerRowMouseenter(this);
+            }).bind('mouseleave.itemReorder', function () {
+                self._reorderListenerRowMouseleave(this);
+            });
+
+            $(document).bind('mousemove.itemReorder', function (e) {
+                self._reorderListenerDocMousemove(e);
+            }).bind('mouseup.itemReorder', function () {
+                self._reorderListenerDocMouseup();
+            });
+
+            this._reorderSetItemPosition(e);
+        };
+
+        this._reorderListenerItemMousemove = function (e, item) {
+            var item = $(item);
+
+            if ((e.pageX - item.offset().left) > item.width() / 2) {
+                item.after(this._item_reorder_helper);
+            } else {
+                item.before(this._item_reorder_helper);
+            }
+        };
+
+        this._reorderListenerRowMouseenter = function (row) {
+            row = $(row);
+
+            this._item_reorder_helper.detach();
+
+            row.find('[drop-helper]').remove();
+            row.append(this._item_reorder_helper);
+
+            this._resizeImageListRow(row[0]);
+        };
+
+        this._reorderListenerRowMouseleave = function (row) {
+            if (this._item_reorder_helper.parent()[0] === row) {
+                this._item_reorder_helper.detach();
+            }
+
+            row = $(row);
+
+            row.find('.drop-helper').remove();
+
+            if (row.children().length > 0) {
+                row.append(this._item_reorder_helper.clone().removeAttr('class').attr('drop-helper', 1).empty());
+            }
+
+            this._resizeImageListRow(row[0]);
+        };
+
+        this._reorderListenerDocMousemove = function (e) {
+            var scroll_top = this._wrap.scrollTop();
+            var win_height = this._wrap.height();
+
+            var pageY = e.pageY - $(window).scrollTop() + scroll_top;
+
+            var cur_win_y = pageY - scroll_top;
+
+            if ((pageY < (scroll_top + 100) && this._item_reorder_last_win_y >= cur_win_y) || (pageY > (scroll_top + win_height - 100) && this._item_reorder_last_win_y <= cur_win_y)) {
+                this._reorderScroll(pageY < (scroll_top + 100));
+            } else {
+                clearTimeout(this._item_reorder_scroll_timer);
+            }
+
+            this._item_reorder_last_win_y = cur_win_y;
+
+            this._reorderSetItemPosition(e);
+        };
+
+        this._reorderListenerDocMouseup = function () {
+            var self = this;
+
+            $(document).unbind('.itemReorder');
+
+            var item = this._item_reorder_helper.data('item');
+
+            var container = item.data('parent-node');
+            var related_item = item.data('related-item');
+
+            if (this._item_reorder_helper.parent()[0]) {
+                related_item = this._item_reorder_helper.prev()[0];
+                container = this._item_reorder_helper.parent()[0];
+
+                this._item_reorder_helper.remove();
+            }
+
+            this._content_wrap.find('[drop-helper]').remove();
+
+            if (!related_item) {
+                $(container).prepend(item);
+            } else {
+                $(related_item).after(item);
+            }
+
+            item.css({top: '', left: '', 'z-index': ''}).removeData('related-item').removeData('parent-node').removeClass('mediaV2-poster-image-dragging');
+
+            this._content_wrap.find('li').removeAttr('new-line-helper').unbind('.itemReorder').each(function () {
+                self._resizeImageListRow(this);
+            });
+            this._content_wrap.find('li > div').unbind('.itemReorder');
+
+            this._item_reorder_helper = null;
+
+            this._content_wrap.removeClass('remove-locked');
+        };
+
+        this._reorderScroll = function (to_top) {
+            var scroll_top = this._wrap.scrollTop();
+            var win_height = this._wrap.height();
+            var list_offset = this._content_wrap.find('ul').offset();
+            var list_height = this._content_wrap.find('ul').height();
+
+            list_offset.top -= (this._wrap.offset().top - scroll_top);
+
+            clearTimeout(this._item_reorder_scroll_timer);
+
+            if (to_top) {
+                scroll_top -= 10;
+
+                if (scroll_top < list_offset.top) {
+                    this._wrap.scrollTop(list_offset.top);
+                    return;
+                }
+
+                this._wrap.scrollTop(scroll_top);
+            } else {
+                scroll_top += 10;
+
+                if (scroll_top + win_height > list_offset.top + list_height) {
+                    this._wrap.scrollTop(list_offset.top + list_height - win_height);
+                    return;
+                }
+
+                this._wrap.scrollTop(scroll_top);
+            }
+
+            var self = this;
+
+            this._item_reorder_scroll_timer = setTimeout(function () {
+                self._reorderScroll(to_top);
+            }, 50);
+        };
+
+        this._reorderSetItemPosition = function (e) {
+            this._item_reorder_helper.data('item').offset({top: e.pageY + 10, left: e.pageX + 10});
+        };
+
+        this._listenerImageItemMouseenter = function (item) {
+            var self = this;
+
+            item = $(item);
+
+            item.append($('<span />').append($('<i />').addClass('fa fa-angle-right'))
+                .append($('<i />').addClass('fa fa-angle-left'))
+                .addClass('remove-btn')
+                .mousedown(function (e) {
+                    if (e.which !== 1) {
+                        return;
+                    }
+
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    var row = item.parent()[0];
+
+                    item.remove();
+
+                    self._resizeImageListRow(row);
+
+                    self._wrap.find('#mediaV2_post_uploader').show();
+                }));
+        };
+
+        this._listenerImageItemMouseleave = function (item) {
+            $(item).find('.remove-btn').remove();
+        };
+
+        this._resizeImageListRow = function (row) {
+            row = $(row);
+
+            var collection = row.find('> div');
+
+            if (collection.length < 1) {
+                if (row.hasAttr('new-line-helper') !== 1) {
+                    row.remove();
+                }
+
+                return;
+            }
+
+            collection.css({width: '', height: ''});
+
+            var row_bonus_width = 0;
+
+            var row_bonus_data = [row.css('padding-left'), row.css('padding-right')];
+
+            for (var i = 0; i < row_bonus_data.length; i++) {
+                row_bonus_data[i] = parseInt(row_bonus_data[i]);
+
+                if (!isNaN(row_bonus_data[i])) {
+                    row_bonus_width += row_bonus_data[i];
+                }
+            }
+
+            var total_item_width = 0;
+
+            var data = [];
+
+            collection.each(function () {
+                var item = $(this);
+
+                if (!item.prev()[0]) {
+                    var margin_left = parseInt(item.css('margin-left'));
+
+                    if (!isNaN(margin_left)) {
+                        row_bonus_width += margin_left;
+                    }
+                }
+
+                var margin_right = parseInt(item.css('margin-right'));
+
+                if (item.next()[0]) {
+                    var sibling_margin_left = parseInt(item.next().css('margin-left'));
+
+                    if (!isNaN(sibling_margin_left) && (isNaN(margin_right) || sibling_margin_left > margin_right)) {
+                        margin_right = sibling_margin_left;
+                    }
+                }
+
+                if (!isNaN(margin_right)) {
+                    row_bonus_width += margin_right;
+                }
+
+                var new_w = item.attr('data-orig-w') * 100 / item.attr('data-orig-h');
+
+                data.push({node: item, width: new_w});
+
+                total_item_width += new_w;
+            });
+
+            $.each(data, function (i, item) {
+                item.node.width('calc((100% - ' + row_bonus_width + 'px) * ' + item.width / total_item_width + ')');
+
+                if (item.node.children().length === 0) {
+                    item.node.height(item.node.attr('data-orig-h') * item.node.width() / item.node.attr('data-orig-w'));
+                }
+            });
+        };
+
+        this._renderURLImageSelector = function (images) {
+            this._wrap.attr('disabled', 'disabled');
+
+            var win = null, self = this;
+
+            var container = $('<div />').addClass('LHV2-simple-frm').width(700);
+
+            $('<label />').attr('for', '').html('Chọn ảnh muốn upload').appendTo(container);
+
+            var selector_wrap = $('<div />').addClass('mediaV2-url-image-selector').appendTo(container);
+
+            selector_wrap.append($('<div />').addClass('loading'));
+
+            var selector_list = null;
+
+            var action_bar = $('<div />').addClass('action-bar').appendTo(container);
+
+            $('<button />').html('Đóng cửa sổ').click(function () {
+                win.destroy();
+            }).appendTo(action_bar);
+
+            var submit_btn = $('<button />').addClass('blue-btn').html('Upload ảnh').click(function () {
+                if (submit_btn.attr('disabled') === 'disabled') {
+                    return;
+                }
+
+                submit_btn.attr('disabled', 'disabled');
+                selector_wrap.attr('disabled', 'disabled');
+
+                selector_list.find('div[img-selected="1"] img').each(function () {
+                    var image = $(this);
+
+                    var item = self._addMediaContentItem('image', $('<img />').attr('src', image.attr('src'))[0], {width: parseInt(image.attr('orig-w')), height: parseInt(image.attr('orig-h'))});
+
+                    item = $(item);
+
+                    item.addClass('uploading-progress');
+                    item.append($('<div />').addClass('uploading-progress-bar').append($('<div />')));
+
+                    $.ajax({
+                        url: linkhay_post_url + '/media/post/upload?pk=' + self._post_key,
+                        type: 'post',
+                        crossDomain: true,
+                        xhrFields: {withCredentials: true},
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-OSC-Cross-Request': 'OK'
+                        },
+                        data: {url: image.attr('src')},
+                        success: function (response) {
+                            if (response.result !== 'OK') {
+                                alert(response.message);
+
+                                item.find('img').remove();
+                                item.append($('<div />').addClass('error-message').html('<div>ERROR [' + response.code + ']</div>' + response.message));
+
+                                setTimeout(function () {
+                                    item.fadeOut({complete: function () {
+                                            var row = item.parent()[0];
+                                            item.remove();
+                                            self._resizeImageListRow(row);
+                                        }});
+                                }, 5000);
+
+                                return;
+                            }
+
+                            if (response.data.selector !== true) {
+                                item.removeClass('uploading-progress').find('.uploading-progress-bar').remove();
+
+                                item.attr('content-key', response.data.key);
+
+                                item.attr('data-orig-w', response.data.width).attr('data-orig-h', response.data.height).find('img').attr('src', response.data.url.replace(/^(.+)\.([^\.]+)$/i, '$1.resized' + (response.data.is_animated ? '.cover' : '') + '.$2'));
+
+                                if (response.data.is_animated) {
+                                    self._addAutoplayChecker(item[0], true);
+                                }
+
+                                self._resizeImageListRow(item.parent()[0]);
+                            }
+                        }
+                    });
+                });
+
+                win.destroy();
+            }).attr('disabled', 'disabled').appendTo(action_bar);
+
+            win = $.create_window({
+                destroy_hook: function () {
+                    self._wrap.removeAttr('disabled', 'disabled');
+                    self._wrap.unbind('.urlPoster');
+                },
+                title: 'Chọn ảnh từ URL để upload',
+                content: container
+            });
+
+            self._wrap.bind('close.urlPoster', function () {
+                win.destroy();
+            });
+
+            var img_loaded_counter = 0;
+
+            var img_loaded = [];
+
+            var _render_list = function () {
+                if (img_loaded_counter < images.length) {
+                    return;
+                }
+
+                selector_wrap.empty();
+
+                selector_list = $('<ul />').appendTo(selector_wrap);
+
+                var row = null;
+
+                $.each(img_loaded, function (idx, image) {
+                    if (idx === 0 || idx % 3 === 0) {
+                        row = $('<li />').appendTo(selector_list);
+                    }
+
+                    var item = $('<div />').appendTo(row);
+
+                    item.append($('<div />').addClass('img-wrap').append(image));
+                    item.append($('<div />').addClass('img-info').html('W: ' + image.width + 'px - H: ' + image.height + 'px').append($('<input />').attr('type', 'checkbox').attr('value', 1).click(function () {
+                        if (this.checked) {
+                            item.attr('img-selected', 1);
+                        } else {
+                            item.removeAttr('img-selected');
+                        }
+                    })));
+
+                    image = $(image);
+
+                    image.attr('orig-w', image.width());
+                    image.attr('orig-h', image.height());
+
+                    var frame_w = image.parent().width();
+                    var frame_h = image.parent().height();
+
+                    var ratio_w = image.width() / frame_w;
+                    var ratio_h = image.height() / frame_h;
+
+                    var ratio = Math.min(ratio_w, ratio_h);
+
+                    var new_w = image.width() / ratio;
+                    var new_h = image.height() / ratio;
+
+                    image.width(new_w);
+                    image.height(new_h);
+                });
+
+                submit_btn.removeAttr('disabled');
+            };
+
+            var img_min_w = parseInt(this._wrap.attr('media-img-min-w'));
+            var img_min_h = parseInt(this._wrap.attr('media-img-min-h'));
+
+            $.each(images, function (idx, image_data) {
+                var image = $('<img />').load(function () {
+                    img_loaded_counter++;
+
+                    if (this.width >= img_min_w && this.height >= img_min_h) {
+                        img_loaded.push(this);
+                    }
+
+                    _render_list();
+                }).error(function () {
+                    img_loaded_counter++;
+                    _render_list();
+                }).attr('src', image_data.url);
+            });
+        };
+
+        this._renderUrlUploader = function () {
+            this._wrap.attr('disabled', 'disabled');
+
+            var win = null, self = this;
+
+            var container = $('<div />').addClass('LHV2-simple-frm').width(400);
+
+            $('<label />').attr('for', '').html('Điền URL của ảnh muốn upload').appendTo(container);
+
+            var url_input = $('<input />').attr('type', 'text').appendTo($('<div />').addClass('input-wrap').appendTo(container));
+
+            var action_bar = $('<div />').addClass('action-bar').appendTo(container);
+
+            $('<button />').html('Đóng cửa sổ').click(function () {
+                win.destroy();
+            }).appendTo(action_bar);
+
+            var submit_btn = $('<button />').addClass('blue-btn').html('Sử dụng URL').click(function () {
+                if (submit_btn.attr('disabled') === 'disabled') {
+                    return;
+                }
+
+                submit_btn.attr('disabled', 'disabled');
+
+                var url = url_input.val();
+
+                if (!url) {
+                    alert('Xin điền URL bạn muốn sử dụng upload ảnh');
+                    return;
+                }
+
+                url_input.parent().attr('disabled', 'disabled');
+
+                $.ajax({
+                    url: linkhay_post_url + '/media/post/upload?pk=' + self._post_key,
+                    type: 'post',
+                    crossDomain: true,
+                    xhrFields: {withCredentials: true},
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-OSC-Cross-Request': 'OK'
+                    },
+                    data: {url: url},
+                    success: function (response) {
+                        if (response.result !== 'OK') {
+                            alert(response.message);
+                            submit_btn.removeAttr('disabled');
+                            url_input.parent().removeAttr('disabled');
+                            return;
+                        }
+
+                        win.destroy();
+
+                        if (response.data.selector === true) {
+                            self._renderURLImageSelector(response.data.images);
+                        } else {
+                            var item = self._addMediaContentItem('image', $('<img />').attr('src', response.data.url.replace(/^(.+)\.([^\.]+)$/i, '$1.resized' + (response.data.is_animated ? '.cover' : '') + '.$2'))[0], {width: response.data.width, height: response.data.height});
+
+                            $(item).attr('content-key', response.data.key);
+
+                            if (response.data.is_animated) {
+                                self._addAutoplayChecker(item, true);
+                            }
+                        }
+                    }
+                });
+            }).appendTo(action_bar);
+
+            win = $.create_window({
+                destroy_hook: function () {
+                    self._wrap.removeAttr('disabled', 'disabled');
+                    self._wrap.unbind('.urlPoster');
+                },
+                title: 'Upload ảnh từ URL',
+                content: container
+            });
+
+            self._wrap.bind('close.urlPoster', function () {
+                win.destroy();
+            });
+        };
+
+        this._setupUploader = function (uploader) {
+            var self = this;
+
+            uploader.oscV2_uploader({
+                max_files: -1,
+                max_connections: 5,
+                process_url: linkhay_post_url + '/media/post/upload?pk=' + this._post_key,
+                btn_content: '<div>Drag &amp; drop photos and videos here<br>or</div><button>Choose photos and videos</button>',
+                dragdrop_content: 'Drop files here to start uploading...',
+                extensions: ['mov', 'wmv', 'webm', 'avi', 'flv', '3gp', 'mp4', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'],
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                callback_validate_files: function (files, instance) {
+                    var img_counter = 0;
+                    var video_counter = 0;
+
+                    for (var i = 0; i < files.length; i++) {
+                        var file = files[i];
+
+                        if (!(file instanceof File)) {
+                            continue;
+                        }
+
+                        var file_extension = instance._getFileNameFromFileObj(file).replace(/^.+\.([^\.]+)$/i, '$1').toLowerCase();
+
+                        if (instance.extensions.indexOf(file_extension) < 0) {
+                            continue;
+                        }
+
+                        if (['jpg', 'png', 'gif', 'jpeg'].indexOf(file_extension) >= 0) {
+                            img_counter++;
+                        } else {
+                            video_counter++;
+                        }
+                    }
+
+                    if (video_counter > 0) {
+                        if (video_counter > 1 || img_counter > 0) {
+                            throw new Error('Xin hãy chọn mỗi lần một tập tin video');
+                        }
+                    }
+                }
+            }).bind('uploader_add_file', function (e, file_id, file, file_name, file_size) {
+                self._listenerUploaderAddFile(file_id, file, file_name);
+            }).bind('uploader_upload_start', function (e, file_id, file, file_name, file_size) {
+                self._listenerUploaderUploadStart(file_id);
+            }).bind('uploader_upload_progress', function (e, file_id, file, file_size, uploaded_size, uploaded_percent) {
+                self._listenerUploaderUploadProgress(file_id, uploaded_percent);
+            }).bind('uploader_upload_complete', function (e, file_id, response, pointer) {
+                self._listenerUploaderUploadComplete(pointer, file_id, response);
+            }).bind('uploader_error', function (e, file_id, error_code, error_message) {
+                self._listenerUploaderUploadError(file_id, error_code, error_message);
+            });
+
+            return uploader;
+        };
+
+        this._wrap = null;
+        this._content_wrap = null;
+        this._post_key = null;
+    }
+
+    window.LHMediaPoster = new LHMediaPoster();
+})(jQuery);

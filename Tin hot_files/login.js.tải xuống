@@ -1,0 +1,52 @@
+function get_browser_dim() {	
+	var dim = {
+		w : self.innerWidth,
+		h : self.innerHeight
+	};
+	
+	var mode = document.compatMode;
+
+	if ((mode || $j.browser.msie) && ! $j.browser.opera) {
+		dim.w = ( mode == 'CSS1Compat' ) ? document.documentElement.clientWidth : document.body.clientWidth;
+		dim.h = ( mode == 'CSS1Compat' ) ? document.documentElement.clientHeight : document.body.clientHeight;
+	}
+
+	return dim;
+}
+
+function reset_login_box() {
+	var browserDim = get_browser_dim();
+	
+	var wrap = $j('#login_wrap');
+	
+	wrap.height(browserDim.h).width(browserDim.w);
+	
+	var login_box = $j('#login_box');
+	
+	login_box.css({top : (browserDim.h - login_box.height())/2, left : (browserDim.w - login_box.width())/2});
+}
+
+function open_login_box(flag) {
+    $j.ajax({
+        type: 'POST',
+        data : {flag : flag},
+        url: my_base_url + my_pligg_base + '/user/authencation/callBox',
+        success: function(response){
+         	if (response.result == "OK"){
+                $j("body").append(response.data);
+                var wrap = $j('#login_wrap');
+                wrap.show();
+                reset_login_box();
+			}
+        }
+    });
+
+
+}
+
+function close_login_box() {
+	$j('#login_wrap').remove();
+	$j(window).unbind('resize', reset_login_box);
+	$j('iframe', $j('#login')[0]).attr('src', '');
+	location.reload();
+}

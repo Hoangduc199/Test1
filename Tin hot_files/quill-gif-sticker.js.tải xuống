@@ -1,0 +1,111 @@
+const BlockEmbed = Quill.import('blots/block/embed');
+
+class CommentGif extends BlockEmbed {
+    static create (value) {
+        const src = typeof value.src !== 'undefined' ? value.src : (typeof value.video_url !== 'undefined' ? value.video_url : '');
+        let node = super.create();
+        if (navigator.userAgent.search("Firefox") > -1) {
+            node.setAttribute('muted', '');
+            node.setAttribute('loop', '');
+            node.setAttribute('autoplay', '');
+            node.setAttribute('data-src', src);
+            node.setAttribute('data-id', value.id);
+        } else {
+            node.setAttribute('data-id', value.id);
+            node.setAttribute('data-src', src);
+            node.setAttribute('muted', 'muted');
+            node.setAttribute('preload', 'metadata');
+            node.setAttribute('loop', 'loop');
+            node.setAttribute('autoplay', 'autoplay');
+        }
+
+        node.setAttribute('width', value.width);
+        node.setAttribute('height', value.height);
+        let source = document.createElement('source');
+        source.setAttribute('src', src);
+        source.setAttribute('type', 'video/mp4');
+        node.appendChild(source);
+
+        let btnDel = document.createElement('button');
+        btnDel.className = 'btn-gif-delete';
+
+        function actionDelete() {
+            let self = this;
+            try {
+                self.parentNode.parentNode.remove();
+            } catch (e) {
+
+            }
+        };
+        btnDel[window.addEventListener ? 'addEventListener' : 'attachEvent'](window.addEventListener ? 'click' : 'onclick', actionDelete, false);
+
+        let wrapper = document.createElement('div');
+        let wrapperItem = document.createElement('div');
+        wrapper.className = 'wrapper-gif';
+        wrapperItem.className = 'gif-item';
+
+        wrapperItem.appendChild(node);
+        wrapperItem.appendChild(btnDel);
+        wrapper.appendChild(wrapperItem);
+        return wrapper;
+    }
+
+    static value (wrapper) {
+        let node = wrapper.querySelector('video');
+        return {
+            id: node.getAttribute('data-id'),
+            src: node.getAttribute('data-src'),
+            width: node.getAttribute('width'),
+            height: node.getAttribute('height')
+        };
+    }
+}
+
+CommentGif.blotName = 'commentGif';
+CommentGif.tagName = 'video';
+Quill.register({
+    'formats/commentGif': CommentGif
+});
+
+class Sticker extends BlockEmbed {
+    static create(data) {
+        const node = super.create(data);
+        node.setAttribute('data-src', data.src);
+        node.setAttribute('src', data.src);
+
+        let btnDel = document.createElement('button');
+        btnDel.className = 'btn-sticker-delete';
+
+        function actionDelete() {
+            let self = this;
+            try {
+                self.parentNode.parentNode.remove();
+            } catch (e) {
+
+            }
+        };
+        btnDel[window.addEventListener ? 'addEventListener' : 'attachEvent'](window.addEventListener ? 'click' : 'onclick', actionDelete, false);
+
+        let wrapper = document.createElement('div');
+        let wrapperItem = document.createElement('div');
+        wrapper.className = 'wrapper-sticker';
+        wrapperItem.className = 'sticker-item';
+
+        wrapperItem.appendChild(node);
+        wrapperItem.appendChild(btnDel);
+        wrapper.appendChild(wrapperItem);
+        return wrapper;
+    }
+    static value(wrapper) {
+        let node = wrapper.querySelector('img.image-sticker');
+        return {
+            src: node.getAttribute('src')
+        };
+    }
+}
+Sticker.blotName = 'sticker';
+Sticker.className = 'image-sticker';
+Sticker.tagName = 'img';
+Quill.register({
+    'formats/sticker': Sticker
+});

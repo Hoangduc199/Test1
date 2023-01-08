@@ -1,0 +1,280 @@
+/**
+ * OSECORE
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the GNU General Public License version 3
+ * that is bundled with this package in the file LICENSE.txt.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.gnu.org/licenses/gpl-3.0.html
+ * If you did not receive a copy of the license and are unable to
+ * obtain it through the world-wide-web, please send an email
+ * to license@osecore.com so we can send you a copy immediately.
+ *
+ * DISCLAIMER
+ *
+ * Do not edit or add to this file if you wish to upgrade OSECORE to newer
+ * versions in the future. If you wish to customize OSECORE for your
+ * needs please refer to http://www.osecore.com for more information.
+ *
+ * @copyright	Copyright (C) 2011 by Sang Le Tuan (http://www.osecore.com). All rights reserved.
+ * @license     http://www.gnu.org/licenses/gpl-3.0.html GNU General Public License version 3
+ * @author      Sang Le Tuan - batsatla@gmail.com
+ */
+
+(function($){	
+    function OSC_ToggleMenu() {
+        this.CUR_INST = null;
+        
+        this.hideCurrentMenu = function () {
+            if(this.CUR_INST) {
+                this.CUR_INST.hide();
+            }
+        },
+        
+        this.menuClickHook = function(e) {
+            var inst = $(this).data('osc-toggle-menu-owner');
+            
+            if(inst.hold_menu_click) {
+                inst.lock_doc_hide = true;
+            }
+        }
+    }
+    
+    function OSC_ToggleMenu_Item(toggler, options) {
+        this.hide = function(e) {
+            if(! this.menu_opened) {
+                return;
+            }
+            
+            clearTimeout(this.timer);
+
+            $(this.toggler).removeClass('toggled');
+            $(this.menu).removeClass('active').attr('toggleMenu_inst', null);
+            
+            this.menu_opened = false;
+
+            if(typeof this.close_hook == 'function') {
+                this.close_hook.apply(this, [{}]);
+            }
+            
+            $.osc_toggleMenu.CUR_INST = null;
+            
+            $(document).unbind('click', this.doc_click_hook);
+        }
+        
+        this.show = function(e) {
+            if(this.menu_opened) {
+                return;
+            }
+            
+            $(this.toggler).addClass('toggled');
+
+            if($.osc_toggleMenu.CUR_INST) {
+                $.osc_toggleMenu.CUR_INST.hide();
+            }
+
+            $.osc_toggleMenu.CUR_INST = this;
+
+            $(this.menu).addClass('active').data('osc-toggle-menu-owner', this).swapZIndex();
+    			
+            var set_to_hide = false;
+
+            if(typeof this.open_hook == 'function') {
+                var callback_return = this.open_hook.apply(this, [{}]);
+    			
+                if(typeof callback_return == 'object') {
+                    if(callback_return.set_to_hide) {
+                        set_to_hide = true;
+                    }
+                }
+            }
+
+            this.setPosition();
+
+            this.menu_opened = true;
+            
+            var self = this;
+            
+            this.timer = setTimeout(function() { $(document).bind('click', self.doc_click_hook) }, 100);
+    			
+            if(typeof this.after_open_hook == 'function') {
+                var callback_return = this.after_open_hook.apply(this, [{}]);
+    			
+                if(typeof callback_return == 'object') {
+                    if(callback_return.set_to_hide) {
+                        set_to_hide = true;
+                    }
+                }
+            }
+    			
+            if(set_to_hide) {
+                this.hide();
+                return false;
+            }
+        }
+        
+        this.setPosition = function() {
+            var position = {};
+            var offset = $(this.toggler).realOffset();
+        	
+            switch(this.toggle_mode) {
+                case 1:	
+                    position = {
+                        top : (offset.top + $(this.toggler).height() + this.divergent_y) + 'px',
+                        left : (offset.left + this.divergent_x) + 'px'
+                    };
+                    break;
+                case 2:
+                    position = {
+                        top : (offset.top + this.divergent_y) + 'px',
+                        left : (offset.left + $(this.toggler).width() + this.divergent_x) + 'px'
+                    };
+                    break;
+                case 3:
+                    position = {
+                        top : (offset.top + $(this.toggler).height() + this.divergent_y) + 'px',
+                        left : (offset.left + $(this.toggler).width() - $(this.menu).width() + this.divergent_x) + 'px'
+                    };
+                    break;
+                case 4:
+                    position = {
+                        top : (offset.top - this.divergent_y - $(this.menu).height()) + 'px',
+                        left : (offset.left + this.divergent_x) + 'px'
+                    };
+                    break;
+                default:
+                    var vp = $.getViewPort();
+
+                    position.top = (offset.top + $(this.toggler).height() + this.divergent_y) + 'px';
+
+                    var xPos  = (offset.left + $(this.toggler).width() - $(this.menu).width()) + this.divergent_x;
+            
+                    if(vp.x > xPos) {
+                        xPos  = offset.left + this.divergent_x;
+                    }
+                    
+                    position.left = xPos + 'px';
+            }
+            
+            $(this.menu).css(position);
+        }
+        
+        this.timer = null;
+        this.toggle_mode = 0;
+        this.auto_toggle = false;
+        this.toggler = null;
+        this.menu = null;
+        this.open_hook = null;
+        this.after_open_hook = null;
+        this.close_hook = null;
+        this.divergent_x = 0;
+        this.divergent_y = 0;
+        this.menu_opened = false;        
+        this.hold_menu_click = false;
+        this.lock_doc_hide = false;
+        
+        if( typeof options != 'object' ) {
+            options = {};
+        }
+        
+        options.toggler = toggler;
+            
+        if(typeof options.menu == 'string') {  
+            options.menu = $(options.menu)[0];
+        }    
+        
+        $(options.menu).addClass('osc-toggle-menu');
+        
+        $.extend(this, options);
+        
+        this.divergent_x = parseInt(this.divergent_x);
+        
+        if(isNaN(this.divergent_x)) {
+            this.divergent_x = 0;
+        }
+        
+        this.divergent_y = parseInt(this.divergent_y);
+        
+        if(isNaN(this.divergent_y)) {
+            this.divergent_y = 0;
+        }
+
+        this.toggle_mode = parseInt(this.toggle_mode);
+
+        this.doc_click_hook = function(e) { if(self.lock_doc_hide) { self.lock_doc_hide = false; return; } self.hide(e); }
+        this.menu_click_hook = function(e) { var inst = $(this).attr('toggle-menu-owner'); if(! inst.hold_menu) { inst.hide(); }};
+        
+        var self = this;
+        
+        $(this.toggler).bind('click', function(e) { self.show(e); }).bind('focus', function(e) { self.show(e); });
+        $(this.menu).unbind('click', $.osc_toggleMenu.menuClickHook).bind('click', $.osc_toggleMenu.menuClickHook);
+            
+        if(this.auto_toggle) {
+            $(this.toggler).bind('mouseover', function(e) { self.show(e); });
+        }
+    }
+
+    $.osc_toggleMenu = new OSC_ToggleMenu(); // singleton instance
+
+    $.fn.osc_toggleMenu = function() {
+        var func = null;
+        
+        if(arguments.length > 0 && typeof arguments[0] == 'string') {
+            func = arguments[0];
+        }
+        
+        if(func) {
+            var opts = [];
+        
+            for(var x = 1; x < arguments.length; x ++) {
+                opts.push(arguments[x]);
+            }
+        } else {
+            opts = arguments[0];
+        }
+               
+        return this.each(function() {
+            var instance = $(this).data('osc-toggle-menu');
+                
+            if(func) {
+                if(instance) {
+                    instance[func].apply(instance, opts);
+                }
+            } else {
+                if(! instance) {
+                    $(this).data('osc-toggle-menu', new OSC_ToggleMenu_Item(this, opts));
+                }
+            }
+        });
+    };
+    
+    $(window).ready(function() {
+        $('.mrk-toggle-menu').each(function() {
+            var obj = $(this);
+            
+            var opt_buff = obj.attr('rel') ? obj.attr('rel').split(';') : [];
+
+            var opts = {};
+            
+            for(var x = 0; x < opt_buff.length; x ++) {
+                var opt = opt_buff[x].split(':');
+                
+                if(opt.length != 2) {
+                    continue;
+                }
+                
+                opt[0] = opt[0].toString().trim();
+                opt[1] = opt[1].toString().trim();
+                
+                if(opt[0] && opt[1]) {
+                    opts[opt[0]] = opt[1];
+                }
+            }
+           
+            if(typeof opts.menu != 'undefined') {                
+                obj.osc_toggleMenu(opts);
+            }
+        });
+    });
+})(jQuery);

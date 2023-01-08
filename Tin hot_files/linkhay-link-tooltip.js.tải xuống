@@ -1,0 +1,315 @@
+(function($, window, document) {
+    let modalContainer;
+    let statusChangeUrl = {};
+    $.fn.LinkhayLinkTooltip = function(options) {
+        
+        const settings = $.extend({
+            container: 'tooltip'
+        }, options);
+
+        const element = $(this);
+        var link = null;
+
+        const urls = {
+            link: {
+                shorten: linkhay_url + '/link/item/shorten' //render link ltus.me
+            }
+        } 
+        const modalContainers = element.find('.ql-tooltip');
+
+        const initTemplate = function() {
+            const templates = `
+            <a class="btn-link-tooltip default">
+                <svg width="15" height="7" viewBox="0 0 20 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M5 1.66667C4.11594 1.66667 3.2681 2.01786 2.64298 2.64298C2.01786 3.2681 1.66667 4.11594 1.66667 5C1.66667 5.88405 2.01786 6.7319 2.64298 7.35702C2.95251 7.66655 3.31997 7.91208 3.72439 8.0796C4.12881 8.24711 4.56226 8.33333 5 8.33333H7.5C7.96024 8.33333 8.33333 8.70643 8.33333 9.16667C8.33333 9.6269 7.96024 10 7.5 10H5C4.34339 10 3.69321 9.87067 3.08658 9.6194C2.47995 9.36812 1.92876 8.99983 1.46447 8.53553C0.526784 7.59785 0 6.32608 0 5C0 3.67392 0.526784 2.40215 1.46447 1.46447C2.40215 0.526784 3.67392 0 5 0H7.5C7.96024 0 8.33333 0.373096 8.33333 0.833333C8.33333 1.29357 7.96024 1.66667 7.5 1.66667H5ZM11.6667 0.833333C11.6667 0.373096 12.0398 0 12.5 0H15C15.6566 0 16.3068 0.129329 16.9134 0.380602C17.52 0.631876 18.0712 1.00017 18.5355 1.46447C18.9998 1.92876 19.3681 2.47995 19.6194 3.08658C19.8707 3.69321 20 4.34339 20 5C20 5.65661 19.8707 6.30679 19.6194 6.91342C19.3681 7.52004 18.9998 8.07124 18.5355 8.53553C18.0712 8.99983 17.52 9.36812 16.9134 9.6194C16.3068 9.87067 15.6566 10 15 10H12.5C12.0398 10 11.6667 9.6269 11.6667 9.16667C11.6667 8.70643 12.0398 8.33333 12.5 8.33333H15C15.4377 8.33333 15.8712 8.24711 16.2756 8.0796C16.68 7.91208 17.0475 7.66655 17.357 7.35702C17.6666 7.04749 17.9121 6.68003 18.0796 6.27561C18.2471 5.87119 18.3333 5.43774 18.3333 5C18.3333 4.56226 18.2471 4.12881 18.0796 3.72439C17.9121 3.31997 17.6666 2.95251 17.357 2.64298C17.0475 2.33345 16.68 2.08792 16.2756 1.9204C15.8712 1.75289 15.4377 1.66667 15 1.66667H12.5C12.0398 1.66667 11.6667 1.29357 11.6667 0.833333Z" fill="#888888" />
+                    <path d="M5.83333 5C5.83333 4.53976 6.20643 4.16667 6.66667 4.16667H13.3333C13.7936 4.16667 14.1667 4.53976 14.1667 5C14.1667 5.46024 13.7936 5.83333 13.3333 5.83333H6.66667C6.20643 5.83333 5.83333 5.46024 5.83333 5Z" fill="#888888" />
+                </svg>
+                <span class="btn-link-tooltip-label">Mặc định</span>
+            </a>
+            <a class="btn-link-tooltip cut-link">
+                <svg width="15" height="8" viewBox="0 0 15 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8.5625 1.89219V0.492188H11.2292C13.0701 0.492188 14.5625 2.05919 14.5625 3.99219C14.5625 5.92518 13.0701 7.49219 11.2292 7.49219H8.5625V6.09219H11.2292C12.3337 6.09219 13.2292 5.15199 13.2292 3.99219C13.2292 2.83239 12.3337 1.89219 11.2292 1.89219H8.5625Z" fill="#E5E5E5" />
+                    <path d="M6.4375 6.10784V7.50784H3.77083C1.92988 7.50784 0.4375 5.94084 0.4375 4.00784C0.4375 2.07485 1.92988 0.507843 3.77083 0.507843H6.4375V1.90784H3.77083C2.66626 1.90784 1.77083 2.84804 1.77083 4.00784C1.77083 5.16764 2.66626 6.10784 3.77083 6.10784H6.4375Z" fill="#555555" />
+                    <path d="M7.5625 4.50784V3.50784H10.5625V4.50784H7.5625Z" fill="#E5E5E5" />
+                    <path d="M4.5625 4.50784V3.50784H7.5625V4.50784H4.5625Z" fill="#555555" />
+                </svg>
+                <span class="btn-link-tooltip-label">Cắt link</span>
+            </a>
+            <a class="btn-link-tooltip short-link">
+                <svg width="32" height="8" viewBox="0 0 32 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M0 7.38725V0.5H1.26956V7.38725H0Z" fill="#555555" />
+                    <path d="M4.87833 2.39799V3.45034H4.01088V5.46107C4.01088 5.86823 4.01841 6.10626 4.03347 6.17517C4.05154 6.24094 4.08919 6.29575 4.14642 6.3396C4.20666 6.38345 4.27894 6.40537 4.36328 6.40537C4.48075 6.40537 4.65093 6.36309 4.87381 6.27852L4.98225 7.30268C4.68707 7.43423 4.35274 7.5 3.97925 7.5C3.75034 7.5 3.54402 7.46085 3.36029 7.38255C3.17655 7.30112 3.04101 7.19776 2.95367 7.07248C2.86933 6.94407 2.8106 6.77181 2.77746 6.5557C2.75036 6.40224 2.7368 6.09217 2.7368 5.6255V3.45034H2.15398V2.39799H2.7368V1.40671L4.01088 0.636242V2.39799H4.87833Z" fill="#555555" />
+                    <path d="M9.02023 7.38725V6.64027C8.84553 6.90649 8.61512 7.11633 8.32898 7.2698C8.04585 7.42327 7.74616 7.5 7.4299 7.5C7.10761 7.5 6.81846 7.4264 6.56244 7.27919C6.30642 7.13199 6.12118 6.92528 6.00673 6.65906C5.89227 6.39284 5.83504 6.02483 5.83504 5.55503V2.39799H7.1046V4.6906C7.1046 5.39217 7.12719 5.82282 7.17237 5.98255C7.22056 6.13915 7.3064 6.26443 7.4299 6.35839C7.55339 6.44922 7.71001 6.49463 7.89977 6.49463C8.11663 6.49463 8.3109 6.43356 8.48259 6.31141C8.65427 6.18613 8.77174 6.03266 8.83499 5.85101C8.89824 5.66622 8.92987 5.21678 8.92987 4.50268V2.39799H10.1994V7.38725H9.02023Z" fill="#555555" />
+                    <path d="M11.1742 5.96376L12.4483 5.76174C12.5025 6.01857 12.6124 6.21432 12.7781 6.34899C12.9438 6.48054 13.1757 6.54631 13.4739 6.54631C13.8022 6.54631 14.0492 6.48367 14.2148 6.35839C14.3263 6.27069 14.382 6.15324 14.382 6.00604C14.382 5.90582 14.3519 5.82282 14.2916 5.75705C14.2284 5.69441 14.0868 5.63647 13.8669 5.58322C12.8429 5.34832 12.1938 5.13378 11.9197 4.9396C11.5402 4.67025 11.3504 4.29597 11.3504 3.81678C11.3504 3.38456 11.5146 3.02125 11.8429 2.72685C12.1712 2.43244 12.6802 2.28523 13.37 2.28523C14.0266 2.28523 14.5145 2.39642 14.8338 2.61879C15.1531 2.84116 15.3729 3.17002 15.4934 3.60537L14.2961 3.83557C14.2449 3.64139 14.1471 3.49262 14.0025 3.38926C13.8609 3.28591 13.6576 3.23423 13.3925 3.23423C13.0582 3.23423 12.8188 3.28277 12.6742 3.37987C12.5778 3.44877 12.5296 3.53803 12.5296 3.64765C12.5296 3.74161 12.5718 3.82148 12.6561 3.88725C12.7706 3.97494 13.1651 4.09866 13.8398 4.25839C14.5175 4.41812 14.9904 4.61387 15.2585 4.84564C15.5235 5.08054 15.6561 5.40783 15.6561 5.82752C15.6561 6.28479 15.4723 6.67785 15.1049 7.00671C14.7374 7.33557 14.1937 7.5 13.4739 7.5C12.8203 7.5 12.3022 7.36219 11.9197 7.08658C11.5402 6.81096 11.2917 6.43669 11.1742 5.96376Z" fill="#555555" />
+                    <path d="M16.8748 7.38725V6.06711H18.1444V7.38725H16.8748Z" fill="#555555" />
+                    <path d="M19.458 2.39799H20.6282V3.07919C21.0468 2.54989 21.5453 2.28523 22.1236 2.28523C22.4308 2.28523 22.6974 2.35101 22.9233 2.48255C23.1492 2.61409 23.3344 2.81298 23.479 3.07919C23.6899 2.81298 23.9173 2.61409 24.1612 2.48255C24.4052 2.35101 24.6658 2.28523 24.9429 2.28523C25.2953 2.28523 25.5934 2.3604 25.8374 2.51074C26.0814 2.65794 26.2636 2.87562 26.3841 3.16376C26.4714 3.37673 26.5151 3.72125 26.5151 4.19732V7.38725H25.2456V4.53557C25.2456 4.04072 25.2019 3.72125 25.1145 3.57718C24.9971 3.38926 24.8164 3.2953 24.5724 3.2953C24.3947 3.2953 24.2275 3.35168 24.0709 3.46443C23.9143 3.57718 23.8013 3.74318 23.732 3.96242C23.6628 4.17852 23.6281 4.52148 23.6281 4.99128V7.38725H22.3586V4.65302C22.3586 4.16756 22.336 3.85436 22.2908 3.71342C22.2456 3.57248 22.1748 3.46756 22.0784 3.39866C21.9851 3.32975 21.8571 3.2953 21.6944 3.2953C21.4986 3.2953 21.3224 3.35011 21.1658 3.45973C21.0092 3.56935 20.8962 3.72752 20.827 3.93423C20.7607 4.14094 20.7276 4.48389 20.7276 4.96309V7.38725H19.458V2.39799Z" fill="#555555" />
+                    <path d="M30.6661 5.79933L31.9311 6.02013C31.7684 6.50246 31.5109 6.87047 31.1585 7.12416C30.8091 7.37472 30.3709 7.5 29.8438 7.5C29.0095 7.5 28.392 7.21655 27.9914 6.64966C27.6751 6.19553 27.517 5.62237 27.517 4.9302C27.517 4.10336 27.7248 3.4566 28.1405 2.98993C28.5561 2.52013 29.0817 2.28523 29.7173 2.28523C30.4311 2.28523 30.9944 2.5311 31.407 3.02282C31.8196 3.51141 32.0169 4.26152 31.9989 5.27315H28.8182C28.8272 5.66465 28.9296 5.97002 29.1254 6.18926C29.3212 6.40537 29.5652 6.51342 29.8573 6.51342C30.0561 6.51342 30.2233 6.45705 30.3588 6.3443C30.4944 6.23154 30.5968 6.04989 30.6661 5.79933ZM30.7383 4.4651C30.7293 4.083 30.6344 3.79329 30.4537 3.59597C30.273 3.39553 30.0531 3.2953 29.7941 3.2953C29.517 3.2953 29.2881 3.40022 29.1073 3.61007C28.9266 3.81991 28.8378 4.10492 28.8408 4.4651H30.7383Z" fill="#555555" />
+                </svg>
+        
+                <span class="btn-link-tooltip-label">Rút gọn</span>
+            </a>
+            <a class="btn-link-tooltip delete">
+                <svg width="8" height="9" viewBox="0 0 8 9" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M0 2.04545C0 1.81952 0.179086 1.63636 0.4 1.63636H7.6C7.82091 1.63636 8 1.81952 8 2.04545C8 2.27139 7.82091 2.45455 7.6 2.45455H0.4C0.179086 2.45455 0 2.27139 0 2.04545Z" fill="#555555" />
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M3.2 0.818182C3.09391 0.818182 2.99217 0.861282 2.91716 0.938002C2.84214 1.01472 2.8 1.11878 2.8 1.22727V1.63636H5.2V1.22727C5.2 1.11878 5.15786 1.01472 5.08284 0.938002C5.00783 0.861282 4.90609 0.818182 4.8 0.818182H3.2ZM6 1.63636V1.22727C6 0.90178 5.87357 0.589618 5.64853 0.35946C5.42348 0.129302 5.11826 0 4.8 0H3.2C2.88174 0 2.57652 0.129302 2.35147 0.35946C2.12643 0.589618 2 0.90178 2 1.22727V1.63636H1.2C0.979086 1.63636 0.8 1.81952 0.8 2.04545V7.77273C0.8 8.09822 0.926428 8.41038 1.15147 8.64054C1.37652 8.8707 1.68174 9 2 9H6C6.31826 9 6.62348 8.8707 6.84853 8.64054C7.07357 8.41038 7.2 8.09822 7.2 7.77273V2.04545C7.2 1.81952 7.02091 1.63636 6.8 1.63636H6ZM1.6 2.45455V7.77273C1.6 7.88123 1.64214 7.98528 1.71716 8.062C1.79217 8.13872 1.89391 8.18182 2 8.18182H6C6.10609 8.18182 6.20783 8.13872 6.28284 8.062C6.35786 7.98528 6.4 7.88122 6.4 7.77273V2.45455H1.6Z" fill="#555555" />
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M3.2 3.68182C3.42091 3.68182 3.6 3.86497 3.6 4.09091V6.54545C3.6 6.77139 3.42091 6.95455 3.2 6.95455C2.97909 6.95455 2.8 6.77139 2.8 6.54545V4.09091C2.8 3.86497 2.97909 3.68182 3.2 3.68182Z" fill="#555555" />
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M4.8 3.68182C5.02091 3.68182 5.2 3.86497 5.2 4.09091V6.54545C5.2 6.77139 5.02091 6.95455 4.8 6.95455C4.57909 6.95455 4.4 6.77139 4.4 6.54545V4.09091C4.4 3.86497 4.57909 3.68182 4.8 3.68182Z" fill="#555555" />
+                </svg>
+                <span class="btn-link-tooltip-label">Xóa</span>
+            </a>`;
+
+            $('#' + settings.editorId).find('.ql-tooltip').attr('id', settings.editorId + '-' + settings.container);
+            
+            modalContainer = $('#' + settings.editorId + '-' + settings.container);
+            
+            if (modalContainer.find('.btn-link-tooltip').length <= 0) {
+                modalContainer.append(templates);
+
+                $('.quill-linkhay-editor .ql-editor a').live('mouseover mouseout click', function(event) {
+                    link = $(this);
+                    if (event.type == 'mouseover' || event.type == 'click') {
+                        // do something on mouseover
+                        showTooltip();
+                    } else {
+                        // do something on mouseout
+                        disableFocusLink();
+                    }
+                });
+
+                $('.quill-linkhay-editor .ql-tooltip .btn-link-tooltip').live('click', function(event) {
+                    let self = $(this);
+                    let action = 'default';
+                    if (self.hasClass('cut-link')) { // cut link
+                        action = 'cut-link';
+                    } else if (self.hasClass('short-link')) { // shorten link
+                        action = 'shorten-link';
+                    } else if (self.hasClass('delete')) { // remove link
+                        action = 'remove-link';
+                    }
+
+                    switch (action) {
+                        case 'cut-link':
+                            setLinkToText();
+                            break;
+                        case 'shorten-link':
+                            shortenLink();
+                            break;
+                        case 'remove-link':
+                            deleteLink();
+                        case 'default':
+                        default:
+                            setLinkToDefault();
+                            break;
+                    }
+                });
+            }
+
+            setStatusChangeUrl(false, settings.editorId);
+        };
+
+        const showTooltip = function (e) {
+            modalContainer = link.closest('.ql-container').find('.ql-tooltip');
+            let width = 265, height = 39;
+            let linkWidth = link.width() + 4;
+            // let linkHeight = link.height() + 4;
+
+            let top = link.position().top - height - 10;
+            let left = link.position().left;
+
+            if (linkWidth > width) {
+                left = link.position().left + (linkWidth - width) / 2;
+            }
+
+            modalContainer.removeClass('ql-hidden').css({
+                top: top,
+                left: left
+            });
+            // $('.ql-editor a').removeClass('focus');
+            // link.addClass('focus');
+            
+            var linkType = link.attr('data-type');
+            modalContainer.find('.btn-link-tooltip').removeClass('active');
+            modalContainer.find('.btn-link-tooltip.' + linkType).addClass('active');
+
+        }
+
+        const setLinkToDefault = function () {
+            //format link to default
+            if (link) {
+                
+                link.attr('data-url') ?
+                    link.attr('href', link.attr('data-url'))
+                        .html(link.attr('data-url'))
+                        .attr('data-type', 'default')
+                        .removeClass('focus')
+                :   
+                    link.attr('data-url', link.attr('href'))
+                        .html(link.attr('href'))
+                        .attr('data-type', 'default')
+                        .removeClass('focus')
+
+                setStatusChangeUrl(true, settings.editorId);
+            }
+            if(link && link.attr('data-url')) {
+                
+                link.attr('href', link.attr('data-url'))
+                    .html(link.attr('data-url'))
+                    .attr('data-type', 'default')
+                    .removeClass('focus');
+                setStatusChangeUrl(true, settings.editorId);
+            }
+            
+            modalContainers.addClass('ql-hidden');
+        };
+
+        const setLinkToText = function () {
+            const maxLength = 15;
+            if (link && !link.attr('data-cut-url')) {
+
+                //create short link
+                const src = link.attr('href');
+                const url = new URL(src);
+                const origin = url.origin;
+                const path = url.pathname;
+                const urlSearch = path + url.search;
+                const cutUrl = origin + (urlSearch.length > 1 ? urlSearch.substr(0, maxLength) : '') + (urlSearch.length > maxLength ? '...' : '');
+                link.attr('data-url', src)
+                    .attr('data-cut-url', cutUrl)
+                    .attr('data-type', 'cut-link');
+
+            }
+            setStatusChangeUrl(true, settings.editorId);
+            //change default url to shortUrl
+            link.attr('href', link.attr('data-url'))
+                .html(link.attr('data-cut-url'))
+                .attr('data-type', 'cut-link')
+                .removeClass('focus');
+
+            modalContainers.addClass('ql-hidden');
+        };
+
+        //change url to short link
+        const shortenLink = function () {
+            if (link) {
+                link.addClass('loading');
+                if (link.attr('data-short-url')) {
+
+                    setStatusChangeUrl(true, settings.editorId); 
+                    
+                    //change default url to shortUrl
+                    link.attr('href', link.attr('data-short-url'))
+                        .html(link.attr('data-short-url'))
+                        .attr('data-type', 'short-link')
+                        .removeClass('focus');
+                    link.removeClass('loading');    
+                } else {
+                    //create short link    
+                    const src = link.attr('href');
+                
+                    let formData = new FormData();
+                        formData.append('url', src);
+                    
+                    $.ajaxq('link-shorten', {
+                        type: "POST",
+                        data: formData,
+                        contentType: false,
+                        processData: false,
+                        crossDomain: true,
+                        xhrFields: {withCredentials: true},
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-OSC-Cross-Request': 'OK'
+                        },
+                        url: urls.link.shorten,
+                        beforeSend: function() {
+                            link.addClass('loading');
+                        },
+                        success: function (response) {
+                            if (response.result !== 'OK') {
+                                
+                                console.log('Get shorten link error: ' + response.message);
+                            } else {
+                                
+                                link.attr('data-url', response.data.url)
+                                    .attr('data-short-url', response.data.short_url)
+                                    .attr('data-type', 'short-link');
+                                
+                                setStatusChangeUrl(true, settings.editorId); 
+                                
+                                //change default url to shortUrl
+                                link.attr('href', response.data.short_url)
+                                    .html(response.data.short_url)
+                                    .removeClass('focus');
+                                link.removeClass('loading');
+                            }
+                        }
+                    });
+                }
+            }
+            
+            modalContainers.addClass('ql-hidden');
+            
+        };
+
+        const deleteLink = function () {
+            var line = link.parent();
+            if( link ) {
+                var nextElement = link[0].nextSibling;
+                if (nextElement && nextElement.data.indexOf(' ') === 0) {
+                    nextElement.data = nextElement.data.substring(1);
+                }
+                link.remove();
+            }
+            modalContainers.addClass('ql-hidden');
+        };
+
+        const disableFocusLink = function () {
+            if ($('#' + modalContainer.attr('id') + ":hover").length === 0) {
+                
+                $(this).removeClass('focus');
+
+                modalContainers.addClass('ql-hidden');
+            }
+        };
+
+        this.setLink = function(selectLink) {
+            link = selectLink;
+            
+            return this;
+        }
+
+        this.cutLink = function() {
+            setLinkToText(); 
+        }
+
+        this.getEditor = function () {
+            return settings.editorId;
+        }
+
+        this.getStatusChangeUrl = function () {
+            
+            return statusChangeUrl;
+        };
+        
+        this.setStatusChangeUrl = function(status, editorId) {
+            
+            setStatusChangeUrl(status, editorId);
+        };
+
+        setStatusChangeUrl = function(status, editorId) {
+            
+            statusChangeUrl[editorId] = status;
+        };
+
+        this.initialize = function() {
+            initTemplate();
+            // modalContainer = $('#' + settings.container);
+
+            return this;
+        };
+
+        return this.initialize();
+    }
+
+    
+})(jQuery, window, document);

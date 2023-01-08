@@ -1,0 +1,139 @@
+(function ($) {
+    $.extend(LHLinkPosterAbstract.prototype, {
+        fire: function (link_type) {
+            if (link_type) {
+                this._link_type = link_type;
+            }
+
+            var self = this;
+
+            this._wrap = $('<div />');
+
+            $.wrapContent(this._wrap, {key: 'link_postForm'});
+
+            $.ajax({
+                url: linkhay_url + '/link/post/form',
+                type: 'post',
+                data: {type: this._link_type, env: 'linkhay'},
+                success: function (response) {
+                    if (response.result === 'OK') {
+                        $.wrapContent(response.data, {key: 'link_postForm', close_callback: function () {
+                                if (self._wrap.attr('closing') !== '1') {
+                                    self._wrap.attr('closing', 1);
+                                    self._wrap.trigger('close');
+                                }
+                            }});
+                        self._wrap = $('#linkV2_post_frm');
+                        self._setup();
+                    } else {
+                        self.close();
+                    }
+                }
+            });
+        },
+        close: function () {
+            $.unwrapContent('link_postForm');
+        },
+        _save: function () {
+            if (this._wrap.attr('disabled') === 'disabled') {
+                return;
+            }
+
+            try {
+                var post_data = this._getPostData();
+            } catch (ex) {
+                alert(ex.message);
+                return;
+            }
+
+            this._wrap.attr('disabled', 'disabled');
+
+            post_data.type = this._link_type;
+            post_data.env = 'linkhay';
+
+            var self = this;
+
+            $.ajax({
+                url: linkhay_url + '/link/post/save',
+                type: 'post',
+                data: post_data,
+                headers: {
+                    'X-CSRF-TOKEN': $.cookie('__linkhay_csrf_token')
+                },
+                success: function (response) {
+                    self._wrap.removeAttr('disabled');
+
+                    if (response.result !== 'OK') {
+                        alert(response.message);
+                        return;
+                    }
+                    self.close();
+
+                    window.location = response.data.link_detail_url;
+                }
+            });
+        },
+        _getUrlInfo: function (input_frm, skip_error_message) {
+            var self = this;
+
+            var link_url = input_frm.val();
+
+            if (link_url === input_frm.data('url')) {
+                return;
+            }
+
+            input_frm.attr('disabled', 'disabled');
+
+            $.ajax({
+                url: linkhay_url + '/link/post/getUrlInfo',
+                type: 'post',
+                data: {url: link_url},
+                success: function (response) {
+                    input_frm.removeAttr('disabled');
+
+                    if (response.result !== 'OK') {
+                        if(! skip_error_message) {
+                            alert(response.message);
+                        }
+
+                        return;
+                    }
+
+                    self._urlInfoCallback(response.data);
+                }
+            });
+        },
+        _setup: function () {
+            var self = this;
+
+            this._wrap.find('> .close-btn').click(function () {
+                self.close();
+            });
+
+            this._wrap.find('#link-post-save-btn').click(function () {
+                self._save();
+            });
+
+            this._wrap.find('#link-post-title').bind('propertychange input', function () {
+                self._updateLengthCounter();
+            });
+            this._wrap.find('#link-post-desc').bind('propertychange input', function () {
+                self._updateLengthCounter();
+            });
+
+            if (this._link_type == null) {
+                this._wrap.find('#link-post-url').focus(function () {
+                    var input_frm = $(this);
+                    input_frm.data('url', input_frm.val());
+                }).blur(function () {
+                    self._getUrlInfo($(this));
+                })[0].focus();
+            }
+        },
+        _link_type: null,
+        _wrap: null,
+        _last_link_url: null
+    });
+
+    window.LHLinkPoster = new LHLinkPosterAbstract();
+})(jQuery);

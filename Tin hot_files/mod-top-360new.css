@@ -1,0 +1,7 @@
+/*Menubar edit 17.10.2011*/
+.menu-bar {list-style:none;font-weight:bold;font-size:14px;position:absolute;left:116px;top:13px;z-index:30}
+	.menu-bar > li {float:left;position:relative}
+	.menu-bar > li.line{color:#d2d2d2;margin:0 8px 0;font-weight:normal}
+		.menu-bar > li > a {display:block;color:#333;text-decoration:none; white-space: nowrap;}
+                .menu-bar > li > a:hover{ color: #C00607}
+.menu-bar .number-new {color:#cd0607;font-weight:normal;margin-right:5px;  right: 50px}

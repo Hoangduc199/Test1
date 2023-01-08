@@ -1,0 +1,3684 @@
+var linkhayEditors = linkhayEditors || [];
+var linkhayLinkId = linkhayLinkId || null,
+    linkhayLinkIdPrev = linkhayLinkIdPrev || null,
+    linkhayTokenComment = [],
+    linkhayPluginTokenGiveModal = null,
+    linkhayUsersMention = [];
+(function ($) {
+    'use strict';
+
+    var _is_pending_process = false;
+
+    function _postCommentIcon(cmt_frm, edit_callback, cmt_data, icon_url) {
+        if (cmt_frm.attr('disabled') === 'disabled') {
+            return;
+        }
+
+        cmt_frm.attr('disabled', 'disabled');
+
+        var post_data = {
+            content: '',
+            attachments: []
+        };
+
+        // Start form
+        var win = null,
+            emo_type = 'GIF';
+        var container = $('<div />').addClass('lhv2-popup lhv2-popup--size-small'),
+            _textbox = $("<div />").addClass('icon-message').osc_nodeTextEditor().appendTo(container),
+            _icon_html = $("<div />").addClass('icon-html').appendTo(container),
+            _play_icon = '';
+
+
+        if (typeof cmt_data.gif !== 'undefined') {
+            post_data.content = '[GIF:' + cmt_data.gif + ']';
+            _play_icon = '<video muted="muted" preload="metadata" loop="loop" autoplay="autoplay"><source type="video/mp4" src="' + icon_url + '">Your browser does not support the video tag.</video>';
+        } else if (typeof cmt_data.sticker !== 'undefined') {
+            emo_type = 'STICKER';
+            post_data.content = '[STICKER:' + cmt_data.sticker + ']';
+            _play_icon = '<img src="' + icon_url + '">';
+        }
+
+        _icon_html.html(_play_icon);
+        // Action bar
+        var action_bar = $('<div />').addClass('action-bar').appendTo(container);
+        $('<button />').addClass('lh-button lh-button--blue').html('Gửi comment').click(function () {
+            if ($(this).attr('disabled') === 'disabled') {
+                return;
+            }
+            $(this).html('Đang gửi');
+            cmt_data.message = _textbox.text();
+            _postComment(cmt_frm, edit_callback, cmt_data);
+            win.destroy();
+        }).appendTo(action_bar);
+
+        $('<button />').addClass('lh-button lh-button--gray').html('Đóng').click(function () {
+            win.destroy();
+            cmt_frm.removeAttr('disabled');
+        }).appendTo(action_bar);
+
+        win = $.create_window({
+            destroy_hook: function () {
+                cmt_frm.removeAttr('disabled');
+            },
+            title: 'Bình luận ' + emo_type,
+            content: container,
+            skipMoveToCenter: true
+        });
+    }
+
+    function _processComment(cmt_frm, edit_callback, post_data) {
+        let act = cmt_frm.attr('act');
+        let linkId = cmt_frm.attr('link-id');
+        let parentId = cmt_frm.attr('parent-id');
+        if (act == 'new' && typeof(linkhayTokenComment['new-' + linkId]) !== 'undefined' && linkhayTokenComment['new-' + linkId] != null) {
+            post_data.token_attachment = linkhayTokenComment['new-' + linkId];
+            try {
+                post_data.verify = grecaptcha.getResponse();
+            } catch (e) {
+
+            }
+        } else if (typeof(linkhayTokenComment['reply-' + parentId]) !== 'undefined' && linkhayTokenComment['reply-' + parentId] != null) {
+            post_data.token_attachment = linkhayTokenComment['reply-' + parentId];
+            try {
+                post_data.verify = grecaptcha.getResponse();
+            } catch (e) {
+
+            }
+        }
+
+        if (typeof post_data.verify !== 'undefined' && post_data.verify === '') {
+            // google recaptcha false
+            // show popup token comment
+            cmt_frm.find('.editor-tab-item.give-token-tab').click();
+            cmt_frm.removeAttr('disabled');
+            return;
+        }
+
+        $.ajax({
+            url: linkhay_url + '/comment/item/' + (edit_callback ? 'edit' : 'add'),
+            type: 'post',
+            crossDomain: true,
+            xhrFields: {withCredentials: true},
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-OSC-Cross-Request': 'OK'
+            },
+            data: post_data,
+            beforeSend: function() {
+                _is_pending_process = true;
+            },
+            success: function (response) {
+                if (response.result !== 'OK') {
+                    cmt_frm.removeAttr('disabled');
+                    _is_pending_process = false;
+                    alert(response.message);
+                    return;
+                }
+                _is_pending_process = false;
+
+                if (typeof cmt_data !== 'undefined' && typeof cmt_data.gif !== 'undefined') {
+                    _loadGifCollection();
+                }
+
+                if (edit_callback) {
+                    edit_callback(response.data);
+                    return;
+                }
+
+                var comment_list = null;
+
+                if (post_data.parent_id > 0) {
+                    comment_list = cmt_frm.parent().parent();
+                    cmt_frm.parent().parent().parent().find('.V2-comment-reply-btn').removeAttr('disabled');
+                    cmt_frm.parent().remove();
+
+                    /** event logging **/
+                    try {
+                        window.LINKHAY_LOGGING.event('comment', 'reply', {
+                            link_id: post_data.link_id,
+                            parent_id: post_data.parent_id,
+                            comment_id: response.data.id
+                        });
+                    } catch (e) {
+                        console.log('[LOGGING ERROR]: ', e);
+                    }
+                } else {
+                    comment_list = cmt_frm.parent().find('> ul');
+
+                    cmt_frm.find('.editor > .attachments').remove();
+                    cmt_frm.removeAttr('disabled');
+                    cmt_frm.find('textarea').val('');
+
+                    if (comment_list.find(' > li.no-comment')[0]) {
+                        comment_list.empty();
+                    }
+
+                    /** event logging **/
+                    try {
+                        window.LINKHAY_LOGGING.event('comment', 'post', {
+                            link_id: post_data.link_id,
+                            comment_id: response.data.id
+                        });
+                    } catch (e) {
+                        console.log('[LOGGING ERROR]: ', e);
+                    }
+                }
+
+                if (!edit_callback) {
+                    // remove token attachment
+                    cmt_frm.find('.remove-token-embed').click();
+
+                    try {
+                        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.toggleMessageHandler) {
+                            window.webkit.messageHandlers.toggleMessageHandler.postMessage({
+                                'action': 'commentLink',
+                                'count': response.data.total_comments,
+                                'link_id': post_data.link_id
+                            });
+                        }
+                        if (typeof JSBridge !== 'undefined') {
+                            JSBridge.showMessageInNative(JSON.stringify({
+                                'action': 'commentLink',
+                                'count': response.data.total_comments,
+                                'link_id': post_data.link_id
+                            }));
+                        }
+                    } catch (e) {
+                        console.log('e:', e);
+                    }
+                }
+                comment_list.append($('<li />').html(response.data.html));
+            }
+        });
+    }
+
+    function _postComment(cmt_frm, edit_callback, cmt_data) {
+        if (_is_pending_process) {
+            return;
+        }
+        var post_data = {
+            content: '',
+            attachments: [],
+
+        };
+
+        if (typeof cmt_data !== 'undefined') {
+            if (typeof cmt_data.gif !== 'undefined') {
+                post_data.content = '[GIF:' + cmt_data.gif + ']';
+
+            } else if (typeof cmt_data.sticker !== 'undefined') {
+                post_data.content = '[STICKER:' + cmt_data.sticker + ']';
+            }
+            post_data.message = cmt_data.message;
+        } else {
+            if (LH_TPL_MOBILE_ENV_FLAG === 0) {
+                cmt_frm.find('textarea').mentionsInput('val', function (text) {
+                    post_data.content = text.trim();
+                });
+            } else {
+                post_data.content = cmt_frm.find('textarea').val().trim();
+            }
+
+            if (post_data.content.length < 1) {
+                alert('Bạn cần điền nội dung cho comment');
+                cmt_frm.removeAttr('disabled');
+                _is_pending_process = false;
+                return;
+            }
+        }
+
+        if (!edit_callback) {
+            var parent_id = parseInt(cmt_frm.attr('parent-id'));
+
+            if (isNaN(parent_id) || parent_id < 1) {
+                parent_id = 0;
+            }
+
+            post_data.link_id = cmt_frm.attr('link-id');
+            post_data.parent_id = parent_id;
+
+            if (post_data.parent_id > 0) {
+                cmt_frm.parent().parent().parent().find('.V2-comment-reply-btn').attr('disabled', 'disabled');
+            }
+        } else {
+            post_data.id = cmt_frm.attr('comment-id');
+        }
+
+
+        var hasUpload = false;
+        if (LH_TPL_MOBILE_ENV_FLAG === 0) {
+            cmt_frm.find('.editor > .attachments > li[attachment-hash]').each(function () {
+                var attachmentHash = $(this).attr('attachment-hash');
+                if(attachmentHash == 'attachmentUploadImage') {
+                    hasUpload = true;
+                    var formData = new FormData();
+                    formData.append('link_id', cmt_frm.attr('link-id'));
+                    formData.append('type', 'image');
+                    formData.append('file', $('input[id="attachmentImage"]')[0].files[0]);
+                    formData.append('data', 'UploadImage');
+                    $.ajax({
+                        type: 'POST',
+                        data: formData,
+                        url: linkhay_url + '/comment/attachment/add',
+                        contentType: false,
+                        processData: false,
+                        success: function (response) {
+                            if (response.result !== 'OK') {
+                                alert(response.message);
+                                return;
+                            }
+                            post_data.attachments.push(response.data.hash);
+
+                            _processComment(cmt_frm, edit_callback, post_data);
+                        }
+                    });
+                } else {
+                    post_data.attachments.push($(this).attr('attachment-id') ? 'id:' + $(this).attr('attachment-id') : $(this).attr('attachment-hash'));
+                }
+
+            });
+        }
+
+        if(!hasUpload) {
+            _processComment(cmt_frm, edit_callback, post_data);
+        }
+
+    }
+
+    window.commentEditorInitAttachmentRemoveBtn = function () {
+        $(this).click(function () {
+            var attachment_item = $(this).closest('li[attachment-hash]');
+
+            var attachment_list = attachment_item.parent();
+            var attachment_hash = attachment_item.attr('attachment-hash');
+            var attachment_id = attachment_item.attr('attachment-id');
+
+            attachment_item.remove();
+
+            if (attachment_list[0].childNodes.length < 1) {
+                attachment_list.remove();
+            }
+
+            if (!attachment_id) {
+                $.ajax({
+                    type: 'post',
+                    data: {hash: attachment_hash},
+                    url: linkhay_url + '/comment/attachment/removeTmp'
+                });
+            }
+        });
+    };
+
+    function _commentEditor_RenderAttachment(cmt_frm, attachment) {
+        var container = cmt_frm.find('.editor');
+
+        if (!container.find('> .attachments')[0]) {
+            $('<ul />').addClass('attachments').prependTo(container);
+        } else if (container.find('> .attachments > li[attachment-hash="' + attachment.hash + '"]')[0]) {
+            return;
+        }
+
+        var attachment_item = $('<li />').attr('attachment-hash', attachment.hash).attr('attachment-type', attachment.type).html(attachment.html);
+
+        if (attachment.id) {
+            attachment_item.attr('attachment-id', attachment.id);
+        }
+        if(attachment.fileInput) {
+            attachment.fileInput.appendTo(attachment_item);
+        }
+
+        container.find('> .attachments').append(attachment_item);
+    }
+
+    function _commentEditor_renderAttachmentInputFrm(cmt_frm, input_frm, config) {
+        var win = null;
+
+        cmt_frm = $(cmt_frm);
+
+        var attached_collection = cmt_frm.find('.editor > .attachments > li[attachment-hash]');
+        var max_attachmend_allowed = parseInt(cmt_frm.attr('attachment-max-' + config.type));
+
+        if (config.type === 'media') {
+            attached_collection = attached_collection.filter('[attachment-type="media"]');
+        } else {
+            attached_collection = attached_collection.filter('[attachment-type="link"],[attachment-type="image"]');
+        }
+
+        if (attached_collection.length >= max_attachmend_allowed) {
+            alert('Bạn chỉ có thể attach nhiều nhất ' + max_attachmend_allowed + ' ' + (config.type === 'media' ? 'media' : 'link (bao gồm cả ảnh)'));
+            return false;
+        }
+
+        var container = $('<div />').addClass('mediaV2-attachment-frm');
+
+        $('<label />').attr('for', '').html(config.input_label).appendTo(container);
+
+        var code_input = $(config.type === 'media' ? '<textarea />' : '<input />').appendTo($('<div />').addClass('input-wrap').appendTo(container));
+
+        if (config.type !== 'media') {
+            code_input.prop('type', 'text');
+        }
+
+        var action_bar = $('<div />').addClass('action-bar').appendTo(container);
+
+        $('<button />').html('Cancel').click(function () {
+            win.destroy();
+        }).appendTo(action_bar);
+
+        $('<button />').addClass('insert-btn').html(config.submit_label).click(function () {
+            var code = code_input.val();
+
+            if (!code) {
+                alert(config.error_message);
+                return;
+            }
+
+            win.destroy();
+
+            $.ajax({
+                type: 'post',
+                data: {
+                    link_id: cmt_frm.attr('link-id'),
+                    data: code,
+                    type: config.type
+                },
+                url: linkhay_url + '/comment/attachment/add',
+                success: function (response) {
+                    if (response.result !== 'OK') {
+                        alert(response.message);
+                        return;
+                    }
+
+                    _commentEditor_RenderAttachment(cmt_frm, response.data);
+                }
+            });
+        }).appendTo(action_bar);
+
+        win = $.create_window({
+            destroy_hook: function () {
+                input_frm.focus();
+            },
+            title: config.window_label,
+            content: container
+        });
+    }
+
+    var EMOTICON_DATA = null;
+
+    function _commentEditor_commandEmoticon(cmt_frm, input_frm) {
+        if ($(this).find('.V2-emoticon-popup')[0]) {
+            return;
+        }
+
+        var popup = $('<div />').addClass('V2-emoticon-popup').appendTo(this);
+
+        var outside_flag = true;
+
+        var callback = function (emoticon) {
+            var text = input_frm.value;
+
+            var selection_data = _commentEditor_getSelection.apply(input_frm);
+
+            input_frm.value = text.substring(0, selection_data.start) + emoticon.code + text.substring(selection_data.end, text.length);
+
+            selection_data.start += emoticon.code.length;
+            selection_data.end = selection_data.start;
+
+            input_frm.focus();
+
+            _commentEditor_setSelection.apply(input_frm, [selection_data.start, selection_data.end]);
+        };
+
+        $(document).bind('mousedown.commentEmoPopup', function () {
+            if (outside_flag) {
+                $(document).unbind('.commentEmoPopup');
+                popup.remove();
+            }
+        });
+        popup.mouseenter(function () {
+            outside_flag = false;
+        });
+        popup.mouseleave(function () {
+            outside_flag = true;
+        });
+
+        if (EMOTICON_DATA === null) {
+            popup.addClass('loading');
+            popup.append($('<div />'));
+
+            $.ajax({
+                url: linkhay_url + '/comment/item/getEmoticonData',
+                type: 'get',
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                success: function (response) {
+                    EMOTICON_DATA = response.data.emoticons;
+                    popup.empty().removeClass('loading');
+                    _commentEditor_renderEmoticonSelector(popup, callback);
+                }
+            });
+        } else {
+            _commentEditor_renderEmoticonSelector(popup, callback);
+        }
+    }
+
+    function _commentEditor_renderEmoticonSelector(popup, callback) {
+        var emoticon_recent = window.localStorage.getItem('core/emoticon/recent');
+
+        var _item_render = function (container, emoticon_key) {
+            if (!EMOTICON_DATA[emoticon_key]) {
+                return;
+            }
+
+            container.append($('<li />').append($('<img />').attr('src', EMOTICON_DATA[emoticon_key].image_url)).mousedown(function (e) {
+                e.preventDefault()
+                e.stopPropagation();
+
+                var recent_idx = emoticon_recent.indexOf(emoticon_key);
+
+                if (recent_idx >= 0) {
+                    emoticon_recent.splice(recent_idx, 1);
+                }
+
+                emoticon_recent.push(emoticon_key);
+
+                emoticon_recent = emoticon_recent.slice(-5);
+
+                window.localStorage.setItem('core/emoticon/recent', emoticon_recent.join(','));
+
+                $(document).unbind('.commentEmoPopup');
+                popup.remove();
+
+                callback(EMOTICON_DATA[emoticon_key]);
+            }));
+        };
+
+        if (emoticon_recent) {
+            emoticon_recent = emoticon_recent.split(',');
+
+            var recent = $('<ul />').addClass('recent').appendTo(popup);
+
+            for (var x = emoticon_recent.length - 1; x >= 0; x--) {
+                _item_render(recent, emoticon_recent[x]);
+            }
+        } else {
+            emoticon_recent = [];
+        }
+
+        var slider = $('<div />').addClass('slider').appendTo(popup);
+
+        var section_container = $('<div />').appendTo($('<div />').addClass('frame').appendTo(slider));
+
+        var counter = 0;
+
+        var section = null;
+
+        var item_per_row = 5;
+        var row_per_section = 5;
+        var item_per_section = item_per_row * row_per_section;
+
+        for (var x in EMOTICON_DATA) {
+            counter++;
+
+            if (counter % item_per_section === 1) {
+                section = $('<ul />').appendTo(section_container);
+            }
+
+            _item_render(section, x);
+        }
+
+        var total_section = Math.ceil(counter / item_per_section);
+        var item_width = section.children().first().outerWidth();
+
+        section_container.width(item_width * item_per_row * total_section);
+
+        var _move_section = function (is_previous) {
+            var coord_x = Math.abs(section_container.position().left);
+
+            var section_idx = Math.max(1, Math.min((coord_x > 0 ? parseInt(coord_x / (item_per_row * item_width)) + 1 : 1) + (is_previous ? -1 : 1), total_section));
+
+            section_container.css('left', ((1 - section_idx) * item_per_row * item_width) + 'px');
+
+            next_btn.removeAttr('disabled');
+            prev_btn.removeAttr('disabled');
+
+            if (section_idx === 1) {
+                prev_btn.attr('disabled', 'disabled');
+            } else if (section_idx === total_section) {
+                next_btn.attr('disabled', 'disabled');
+            }
+        };
+
+        var next_btn = $('<div />').addClass('next-btn').click(function () {
+            _move_section.apply(this, [false]);
+        });
+        var prev_btn = $('<div />').addClass('prev-btn').attr('disabled', 'disabled').click(function () {
+            _move_section.apply(this, [true]);
+        });
+
+        slider.append(next_btn);
+        slider.append(prev_btn);
+
+        if (EMOTICON_DATA.length <= 25) {
+            next_btn.attr('disabled', 'disabled');
+        }
+    }
+
+    function _commentEditor_commandLink(cmt_frm, input_frm) {
+        _commentEditor_renderAttachmentInputFrm(cmt_frm, input_frm, {
+            type: 'link',
+            window_label: 'Insert external link',
+            submit_label: 'Insert link',
+            input_label: 'Paste External URL that you want to insert below:',
+            error_message: 'Please enter external link that your want to insert'
+        });
+    }
+
+    function _commentEditor_commandMedia(cmt_frm, input_frm) {
+        _commentEditor_renderAttachmentInputFrm(cmt_frm, input_frm, {
+            type: 'media',
+            window_label: 'Insert media',
+            submit_label: 'Insert media',
+            input_label: 'Paste your media code or media URL below:',
+            error_message: 'Please enter media URL or media embed code'
+        });
+    }
+    function _commentEditor_commandImage(cmt_frm, input_frm) {
+        cmt_frm = $(cmt_frm);
+        var attached_collection = cmt_frm.find('.editor > .attachments > li[attachment-hash]');
+        var max_attachmend_allowed = parseInt(cmt_frm.attr('attachment-max-media'));
+
+        if (attached_collection.length >= max_attachmend_allowed) {
+            alert('Bạn chỉ có thể attach nhiều nhất ' + max_attachmend_allowed + ' media' );
+            return false;
+        }
+
+        var self = this;
+        var win = null;
+        var container = $('<form />').attr({'enctype':'multipart/form-data', 'method': 'POST'}).addClass('osc-editor-win-frm').width(350);
+        $('<label />').attr('for', '').html('Thêm ảnh từ URL').appendTo(container);
+        var url_input = $('<input />').prop('type', 'text').appendTo($('<div />').addClass('input-wrap').appendTo(container));
+        $('<label />').attr('for', '').html('Hoặc upload ảnh từ máy của bạn').appendTo(container);
+        var fileUpload = $('<input />').prop('type', 'file').attr('id','attachmentImage').appendTo($('<div />').addClass('img-uploader').appendTo(container));
+
+        fileUpload.change(function(){
+
+            //$this.after($clone).appendTo();
+        });
+
+        var action_bar = $('<div />').addClass('action-bar').appendTo(container);
+        $('<button />').html('Cancel').click(function () {
+            win.destroy();
+        }).appendTo(action_bar);
+        $('<button />').addClass('blue-btn').html('Thêm ảnh').click(function (e) {
+            e.preventDefault();
+            var image_url = url_input.val(),
+                file = document.getElementById('attachmentImage').files[0];
+
+            if (!image_url && !file) {
+                alert('Bạn chưa chọn ảnh');
+                return;
+            }
+            if (!image_url) {
+                var _img = null,
+                    _html = null;
+                if(!file) {
+
+                }
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    var img = document.createElement('img');
+
+                    img.onload = function () {
+                        var canvas = document.createElement('canvas');
+
+                        var MAX_WIDTH = 400;
+                        var MAX_HEIGHT = 400;
+
+                        var width = img.width;
+                        var height = img.height;
+
+                        if (width > height) {
+                            if (width > MAX_WIDTH) {
+                                height *= MAX_WIDTH / width;
+                                width = MAX_WIDTH;
+                            }
+                        } else {
+                            if (height > MAX_HEIGHT) {
+                                width *= MAX_HEIGHT / height;
+                                height = MAX_HEIGHT;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+
+                        var ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        // canvas.toBlob(function (blob) {
+                        //    $('<img />').attr('src', URL.createObjectURL(blob)).appendTo($('.img-uploader'));
+                        // });
+                    };
+
+
+                    img.src = e.target.result;
+                    _img = e.target.result;
+
+                    _html = '<div class="attachment-item"><div class="header"><button type="button" class="remove-btn" data-insert-cb="commentEditorInitAttachmentRemoveBtn"></button><div class="tile"><i class="icon fa fa-external-link"></i><span class="type">Image:</span><a href="#" class="label">'+file.name+'</a></div></div><div class="image-content"><img src="'+_img+'" /></div></div>';
+                    var $clone = fileUpload.clone();
+                    //attachmentFileUpload.html($clone);
+
+                    _commentEditor_RenderAttachment(cmt_frm, {id:0,hash:'attachmentUploadImage', type: 'image', html: _html, fileInput: $clone});
+                };
+                reader.readAsDataURL(file);
+            } else {
+                $.ajax({
+                    type: 'post',
+                    data: {
+                        link_id: cmt_frm.attr('link-id'),
+                        data: image_url,
+                        type: 'link'
+                    },
+                    url: linkhay_url + '/comment/attachment/add',
+                    success: function (response) {
+                        if (response.result !== 'OK') {
+                            alert(response.message);
+                            return;
+                        }
+
+                        _commentEditor_RenderAttachment(cmt_frm, response.data);
+                    }
+                });
+            }
+
+
+
+            win.destroy();
+
+
+        }).appendTo(action_bar);
+
+        win = $.create_window({
+            destroy_hook: function () {
+                input_frm.focus();
+            },
+            title: 'Thêm ảnh',
+            content: container
+        });
+    }
+
+    function _commentEditor_commandTag(cmt_frm, input_frm) {
+        var cmd_btn = $(this);
+
+        var tag_name = cmd_btn.attr('cmd-data').toLowerCase();
+
+        var open_tag = '[' + tag_name + ']';
+        var close_tag = '[/' + tag_name + ']';
+
+        var open_tag_length = open_tag.length;
+        var close_tag_length = close_tag.length;
+
+        var text = input_frm.value;
+
+        var selection_data = _commentEditor_getSelection.apply(input_frm);
+
+        if (selection_data.start !== selection_data.end) {
+            var selected_text = text.substring(selection_data.start, selection_data.end);
+
+            text = text.substring(0, selection_data.start) + open_tag + selected_text + close_tag + text.substring(selection_data.end, text.length);
+
+            selection_data.start += open_tag_length;
+            selection_data.end += open_tag_length;
+        } else {
+            var is_opening = parseInt(cmd_btn.attr('active')) === 1;
+
+            if (is_opening) {
+                cmd_btn.removeAttr('active');
+            } else {
+                cmd_btn.attr('active', 1);
+            }
+
+            text = text.substring(0, selection_data.start) + (is_opening ? close_tag : open_tag) + text.substring(selection_data.start, text.length);
+
+            selection_data.start += is_opening ? close_tag_length : open_tag_length;
+            selection_data.end = selection_data.start;
+        }
+
+        input_frm.value = text;
+
+        input_frm.focus();
+
+        _commentEditor_setSelection.apply(input_frm, [selection_data.start, selection_data.end]);
+    }
+
+    function _commentEditor_setSelection(start, end) {
+        if (typeof this.setSelectionRange !== 'undefined') {
+            this.setSelectionRange(start, end);
+        } else {
+            var range = this.createTextRange();
+
+            range.collapse(true);
+            range.moveStart('character', start);
+            range.moveEnd('character', end - start);
+            range.select();
+        }
+    }
+
+    function _commentEditor_getSelection() {
+        var selection_data = {start: this.value.length, end: this.value.length};
+
+        if (typeof this.selectionStart !== 'undefined') {
+            selection_data.start = this.selectionStart;
+            selection_data.end = this.selectionEnd;
+        } else {
+            var range = document.selection.createRange();
+
+            if (range && range.parentElement() === this) {
+                var length = this.value.length;
+
+                var normalized_value = this.value.replace(/\r\n/g, "\n");
+
+                var text_input_range = this.createTextRange();
+                text_input_range.moveToBookmark(range.getBookmark());
+
+                var end_range = this.createTextRange().collapse(false);
+
+                if (text_input_range.compareEndPoints('StartToEnd', end_range) > -1) {
+                    selection_data.start = selection_data.end = length;
+                } else {
+                    selection_data.start = -text_input_range.moveStart('character', -length);
+                    selection_data.start += normalized_value.slice(0, selection_data.start).split("\n").length - 1;
+
+                    if (text_input_range.compareEndPoints('EndToEnd', end_range) > -1) {
+                        selection_data.end = length;
+                    } else {
+                        selection_data.end = -text_input_range.moveEnd('character', -length);
+                        selection_data.end += normalized_value.slice(0, selection_data.end).split("\n").length - 1;
+                    }
+                }
+            }
+        }
+
+        return selection_data;
+    }
+
+
+
+    var comment_frm_tpl = null;
+    var CURRENT_COMMENT_FRM = null;
+
+    window.preCommentRawData = function() {
+        const container = $(this);
+        const postfix = (new Date()).getTime();
+        const linkId = container.attr('link-id');
+        const mobile = container.data('mobile');
+        if (typeof linkhayEditors['editor-main'] === 'undefined') {
+            let time = (new Date()).getTime();
+            let div = $('<div/>').addClass('main-editor quill-linkhay-editor')
+                .attr('id', 'main-editor-' + time)
+                .attr('data-time', time);
+            container.append(div);
+            linkhayEditors['editor-main'] = div.linkHayNewEditor({
+                mobile: mobile == true ? true : false,
+                link_id: linkId,
+                editor: {
+                    container: 'main-editor-container-' + postfix,
+                    toolbar: 'main-editor-toolbar-container-' + postfix
+                },
+                attachments: 'main-editor-attachments-' + postfix
+            });
+        } else {
+            linkhayEditors['editor-main'].setLinkId(linkId)
+                .setReplyComment(0)
+                .attach(true);
+        }
+    };
+
+    window.initCommentQuoteBtnRawData = function() {
+        var commentItem = $(this).closest('li'),
+            container = commentItem.find('.V2-comment-item:first');
+        var linkId = container.data('link-id'),
+            commentId = container.data('comment-id'),
+            commentBody = container.find('.V2-comment-body').clone(),
+            commentDate = container.data('created-date'),
+            userId = container.data('user-id'),
+            username = container.data('username');
+
+        if (linkhayEditors['editor-main'].getReplyComment() == 0) {
+            // reply comment
+            var parentId = parseInt($(container).data('comment-tkid-parent')),
+                replyTo = $(this).data('reply-to'),
+                mobile = $(container).data('mobile');
+            mobile = typeof(mobile) === 'undefined' ? false : mobile;
+
+            if (linkhayEditors['editor-main'].getReplyComment() === commentId) {
+                return;
+            }
+
+            var parentComment = $(`.V2-comment-item[data-comment-id="${commentId}"]`).data('comment-tkid-parent');
+            if (parentComment == '') {
+                parentComment = $(`.V2-comment-item[data-comment-id="${commentId}"]`).data('comment-id');
+            }
+
+            linkhayEditors['editor-main'].destroy(false, parentComment !== linkhayEditors['editor-main'].getParentComment());
+            var ul = $(container).next();
+            ul = ul.length > 0 && ul[0].tagName.toLowerCase() == 'ul' ? ul[0] : null;
+            if (ul !== null) {
+                if ($('.main-editor.quill-linkhay-editor', ul).length == 0) {
+                    let li = $(`<li data-mobile="${mobile}"></li>`);
+                    li.append($(linkhayEditors['editor-main']));
+                    $(ul).append(li);
+                }
+            } else {
+                ul = $(this).closest('ul');
+                if (ul.prev('.V2-comment-item').length > 0) {
+                    if ($('.main-editor.quill-linkhay-editor', ul).length === 0) {
+                        let li = $(`<li data-mobile="${mobile}"/>`);
+                        li.append($(linkhayEditors['editor-main']));
+                        $(ul).append(li);
+                    }
+                } else {
+                    let ul = $('<ul/>')
+                    let li = $(`<li data-mobile="${mobile}"/>`);
+                    li.append($(linkhayEditors['editor-main']));
+                    $(ul).append(li);
+                    $(container).after(ul);
+                }
+            }
+
+            if (parentComment != linkhayEditors['editor-main'].getParentComment()) {
+                quill.setContents('', Quill.sources.USER);
+            }
+            linkhayEditors['editor-main'].setReplyComment(commentId, parentComment !== linkhayEditors['editor-main'].getParentComment());
+            linkhayEditors['editor-main'].setParentComment(parentComment);
+            //
+        }
+
+        commentBody.find('.comment-quote').remove();
+        var p = $('p', commentBody),
+            commentText = [];
+
+        let text = $(commentBody).html().trim().replace(/<(?!br\s*\/?)[^>]+>/ig, '');
+        commentText.push(text);
+
+        if (typeof current_user !== 'undefined' && current_user !== username) {
+            linkhayEditors['editor-main'].mention({username: username});
+        }
+        linkhayEditors['editor-main'].quoteComment({
+            user_id: userId,
+            username: username,
+            comment_id: commentId,
+            text: commentText.join('\n'),
+            created_date: commentDate
+        });
+    };
+
+    window.preCommentReplyBtnRawData = function() {
+        var commentItem = $(this).closest('li'),
+            container = commentItem.find('.V2-comment-item:first');
+        var linkId = $(this).data('link-id'),
+            commentId = $(this).data('comment-id'),
+            parentId = parseInt($(container).data('comment-tkid-parent')),
+            replyTo = $(this).data('reply-to'),
+            mobile = $(container).data('mobile'),
+            commentUser = {
+                id: $(container).data('user-id'),
+                name: $(container).data('username'),
+                avatar: $(container).find('.V2-comment-lc .feed-photo img:first').attr('src')
+            };
+        mobile = typeof(mobile) === 'undefined' ? false : mobile;
+
+        if (linkhayEditors['editor-main'].getReplyComment() === commentId) {
+            return;
+        }
+
+        linkhayEditors['editor-main'].setTokenDefaultUser(commentUser);
+        var parentComment = $(`.V2-comment-item[data-comment-id="${commentId}"]`).data('comment-tkid-parent');
+        if (parentComment == '') {
+            parentComment = $(`.V2-comment-item[data-comment-id="${commentId}"]`).data('comment-id');
+        }
+
+        linkhayEditors['editor-main'].destroy(false, parentComment !== linkhayEditors['editor-main'].getParentComment());
+        var ul = $(container).next();
+        ul = ul.length > 0 && ul[0].tagName.toLowerCase() == 'ul' ? ul[0] : null;
+        if (ul !== null) {
+            if ($('.main-editor.quill-linkhay-editor', ul).length == 0) {
+                let li = $(`<li data-mobile="${mobile}"></li>`);
+                li.append($(linkhayEditors['editor-main']));
+                $(ul).append(li);
+            }
+        } else {
+            ul = $(this).closest('ul');
+            if (ul.prev('.V2-comment-item').length > 0) {
+                if ($('.main-editor.quill-linkhay-editor', ul).length === 0) {
+                    let li = $(`<li data-mobile="${mobile}"/>`);
+                    li.append($(linkhayEditors['editor-main']));
+                    $(ul).append(li);
+                }
+            } else {
+                let ul = $('<ul/>')
+                let li = $(`<li data-mobile="${mobile}"/>`);
+                li.append($(linkhayEditors['editor-main']));
+                $(ul).append(li);
+                $(container).after(ul);
+            }
+        }
+
+        if (parentComment != linkhayEditors['editor-main'].getParentComment()) {
+            quill.setContents('', Quill.sources.USER);
+        }
+        linkhayEditors['editor-main'].setReplyComment(commentId, parentComment !== linkhayEditors['editor-main'].getParentComment());
+        if (typeof current_user !== 'undefined' && current_user !== replyTo) {
+            linkhayEditors['editor-main'].mention({username: replyTo});
+        }
+        linkhayEditors['editor-main'].setParentComment(parentComment);
+    };
+
+    window.preCommentFrm = function (close_callback, edit_callback) {
+        var item = $(this);
+        var linkId = $(item).attr('link-id'),
+            parentId = $(item).attr('parent-id');
+
+        item.find('.editor > .tile .close-btn').click(function () {
+            if (!window.confirm('Bạn có muốn đóng form bình luận này không?')) {
+                return;
+            }
+
+            item.remove();
+
+            if (close_callback) {
+                close_callback();
+            }
+        });
+
+        comment_frm_tpl = item.clone();
+
+        var input_frm = item.find('textarea');
+
+        var timer = null;
+
+        input_frm.focus(function () {
+            clearTimeout(timer);
+            CURRENT_COMMENT_FRM = item;
+        }).blur(function () {
+            timer = setTimeout(function () {
+                if (CURRENT_COMMENT_FRM && CURRENT_COMMENT_FRM[0] === item[0]) {
+                    CURRENT_COMMENT_FRM = null;
+                }
+            }, 250);
+        });
+
+        if (LH_TPL_MOBILE_ENV_FLAG !== 1) {
+            input_frm.autoExpander({
+                minHeight: 100
+            });
+
+            LinkhayFriendMentioned(input_frm);
+
+            input_frm.focus(function () {
+                item.addClass('focus');
+            }).blur(function () {
+                if (input_frm.val() === '') {
+                    item.removeClass('focus');
+                }
+            });
+
+            item.find('.command-bar > li[cmd]').click(function () {
+                var cmd = $(this).attr('cmd');
+
+                cmd = '_commentEditor_command' + cmd.charAt(0).toUpperCase() + cmd.slice(1);
+                eval('cmd = ' + cmd);
+
+                cmd.apply(this, [item[0], input_frm[0]]);
+            });
+        } else {
+            var focus_timer = null;
+
+            input_frm.focus(function () {
+                clearTimeout(focus_timer);
+
+                item.addClass('focus');
+            }).blur(function () {
+                focus_timer = setTimeout(function () {
+                    item.removeClass('focus');
+                }, 200);
+            });
+        }
+
+        _initGIFsForm(item);
+        _initStickerForm(item);
+
+        var tabs = item.find('.tabs > div[data-tab]');
+
+        if (tabs[0]) {
+            var frms = item.find('[data-frm]');
+
+            tabs.click(function () {
+                tabs.removeClass('active');
+                frms.hide();
+
+                var tab = $(this);
+
+                tab.addClass('active');
+                frms.filter('[data-frm="' + tab.attr('data-tab') + '"]').show();
+            });
+
+            tabs.first().trigger('click');
+        }
+
+        /** token comment **/
+        if ($('.editor-tab-item.give-token-tab').length > 0) {
+            try {
+                linkhayPluginTokenGiveModal = $('body').linkHayGiveTokenPopup({
+                    isOldEditor: true,
+                    editor: null,
+                    attachmentId: null,
+                    linkId: linkId
+                });
+
+                try {
+                    mention_users_merge(linkId, 'link');
+                } catch (e) {
+                    console.error('mention_users_merge: ' + e);
+                }
+
+                $('.editor-tab-item.give-token-tab').click(function () {
+                    // focus editor to load user comment mentions
+                    $(input_frm).focus();
+
+                    let linkDetailContainer = $(item).parents('.main-col').find('.V2-link-detail');
+                    if (linkDetailContainer.length == 0) {
+                        linkDetailContainer = $(item).parents('.V2-two-cols-layout').find('.V2-link-detail');
+                    }
+                    let linkInfo = $('.link-summary .link-info .info .user-link', linkDetailContainer);
+                    let author = {
+                        id: null,
+                        name: null,
+                        avatar: null
+                    };
+                    if ($(item).data('mobile') == true) {
+                        linkDetailContainer = $(item).parents('.content');
+                        linkInfo = $('.author', linkDetailContainer);
+                        author.name = linkInfo.find('.name-author-linkview').text().trim();
+                        author.avatar = linkInfo.find('.name-author-linkview img').attr('src');
+                    } else {
+                        author.name = linkInfo.find('span').text().trim()
+                        author.avatar = linkInfo.find('img:first').attr('src');
+                    }
+
+                    var self = $(this);
+                    let li = self.parents('li');
+                    let comment = $('.V2-comment-item[data-comment-tkid="' + item.attr('reply-comment-id') + '"]');
+                    let defaultUser = {};
+                    let mentionKey = 'new-' + linkId;
+
+                    if ($(comment_frm_tpl).attr('act') === 'new') {
+                        defaultUser = author;
+                    } else {
+                        if (comment.length == 0 || comment.data('username') === current_user) {
+                            defaultUser = author;
+                        } else {
+                            defaultUser = {
+                                name: comment.data('username'),
+                                id: comment.data('user-id'),
+                                avatar: comment.find('.feed-photo > img:first').attr('src')
+                            };
+                        }
+                        mentionKey = 'reply-' + parentId;
+                    }
+
+                    linkhayUsersMention[mentionKey] = typeof(linkhayUsersMention[mentionKey]) !== 'undefined' ? linkhayUsersMention[mentionKey] : null;
+                    if (null == linkhayUsersMention[mentionKey]) {
+                        linkhayUsersMention[mentionKey] = [];
+                        if (typeof(user_comment_mention) !== 'undefined') {
+                            for (let i in user_comment_mention) {
+                                if (typeof(user_comment_mention[i]) !== 'function') {
+                                    linkhayUsersMention[mentionKey].push(user_comment_mention[i]);
+                                }
+                            }
+                        }
+                        if (typeof(friends_data) !== 'undefined' && friends_data.length > 0) {
+                            for (let i=0; i < friends_data.length; i++) {
+                                linkhayUsersMention[mentionKey].push({
+                                    id: friends_data[i].id,
+                                    name: friends_data[i].name,
+                                    avatar: friends_data[i].avatar_url
+                                });
+                            }
+                        }
+                    }
+
+                    if (typeof defaultUser.name !== 'undefined' && defaultUser.name == current_user) {
+                        defaultUser = null;
+                    }
+
+                    let tokenComment = null;
+                    if (typeof(linkhayTokenComment[mentionKey]) !== 'undefined' && linkhayTokenComment[mentionKey]) {
+                        tokenComment = linkhayTokenComment[mentionKey];
+                        defaultUser = {
+                            name: tokenComment.username,
+                            avatar: $('[data-username="' + tokenComment.username + '"]:first .feed-photo img').src
+                        };
+                    }
+
+                    linkhayPluginTokenGiveModal.showModal({
+                        element: $(self),
+                        listUser: linkhayUsersMention[mentionKey],
+                        defaultUser: defaultUser,
+                        tokenBalance: $('.user-token-available').text().trim().replace(/[^0-9]/ig, ''),
+                        tokenComment: tokenComment
+                    });
+                });
+            } catch (e) {
+                console.log('Token comment: ' + e);
+            }
+        }
+
+        var _btn_submit = item.find('.submit');
+
+        _btn_submit.click(function () {
+            if (item.attr('disabled') === 'disabled' || _is_pending_process) {
+                return;
+            }
+            item.attr('disabled', 'disabled');
+            // hiển thị popup thông báo những người có bình luận xấu
+            var badword_alert_flag = item.attr('badword-alert-flag');
+
+            if (badword_alert_flag > 0) {
+
+                var counter = 60;
+
+                var interval = setInterval(function () {
+                    if (counter >= 0 && counter <= 60) {
+                        $('.demo').html(counter);
+                        counter--;
+                        // Store
+                    } else {
+                        var reset_captcha = linkhay_url + '/user/common/getCaptchaBadwordAlert';
+                        counter = 60;
+
+                        $('.img-captcha').attr('src', reset_captcha);
+                    }
+                }, 1000);
+
+                var container = $('<div />').addClass('LHV2-simple-frm').width(400);
+
+                $('<p />').html('Những comment trước đó của bạn có nội dung thô tục, xin hãy kiểm tra lại để chắc chắn nội dung comment hiện tại của bạn phù hợp với quy định của Linkhay').appendTo(container);
+
+                var box = $('<div style="text-align: center; padding-top: 10px; display: table" />').appendTo(container);
+
+                var col1 = $('<div />').css({width: '40%', float: 'left'}).appendTo(box);
+
+                var content_col1 = $('<div />').css({padding: '5px'}).appendTo(col1);
+
+                $('<p />').css({padding: '5px'}).html('Mã xác minh').appendTo(content_col1);
+
+                var captcha_input = '';
+
+                var _captcha_input = $('<input />').css({width: '100%', padding: '12px 0'}).attr({'name': 'captcha_input'}).change(function () {
+                    captcha_input = _captcha_input.val();
+                }).appendTo(content_col1);
+                var col2 = $('<div />').css({width: '40%', float: 'left'}).appendTo(box);
+
+                var content_col2 = $('<div />').css({padding: '5px'}).appendTo(col2);
+
+                $('<img />').addClass('img-captcha').css({width: '100%'}).attr({'src': linkhay_url + '/user/common/getCaptchaBadwordAlert', 'alt': 'captcha code'}).appendTo(content_col2);
+
+                var col3 = $('<div />').css({width: '20%', float: 'left'}).appendTo(box);
+
+                var content_col3 = $('<div />').css({padding: '5px'}).appendTo(col3);
+
+                var circle = $('<div />').css({'width': '60px', 'height': '60px', 'border-radius': ' 50%', 'border': '2px solid #aaa', 'box-shadow': 'inset 0 0 0 5px white'}).appendTo(content_col3);
+
+                $('<span />').addClass('demo').css({'padding': '10px', 'width': '100%', 'height': 'auto', 'line-height': '60px', 'border-radius': '50%', '-moz-border-radius': '50%', '-webkit-border-radius': '50%', 'text-align': 'center', 'font-size': '16px', 'font-weight': '700'}).html('60').appendTo(circle);
+
+                var action_bar = $('<div />').addClass('action-bar').appendTo(container);
+
+                $('<button />').html('Sửa lại').click(function () {
+                    win.destroy();
+                }).appendTo(action_bar);
+
+                $('<button />').html('Tiếp tục').click(function () {
+                    $.ajax({
+                        type: 'get',
+                        url: linkhay_url + '/user/common/checkCaptchaBadwordAlert',
+                        data: {captcha_input: captcha_input},
+                        crossDomain: true,
+                        xhrFields: {withCredentials: true},
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-OSC-Cross-Request': 'OK'
+                        },
+                        success: function (response) {
+                            if (response.result !== 'OK') {
+                                alert(response.message);
+                                return;
+                            }
+                            if (response.data == false) {
+                                alert('Mã xác minh không chính xác');
+                                return;
+                            }
+                            // nếu capcha nhập đúng giảm số lần hiện popup xuống 1 lần
+                            $.ajax({
+                                type: 'get',
+                                url: linkhay_url + '/user/common/downTimesBadwordAlert',
+                                crossDomain: true,
+                                xhrFields: {withCredentials: true},
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'X-OSC-Cross-Request': 'OK'
+                                },
+                                success: function (response) {
+                                    if (response.result !== 'OK') {
+                                        alert(response.message);
+                                        return;
+                                    }
+                                    item.attr('badword-alert-flag', response.data);
+                                }
+                            });
+                            _postComment(item, edit_callback); // post comment
+                            win.destroy(); // đóng popup
+
+                        }
+                    });
+                }).appendTo(action_bar);
+
+                $.wrapContent($('<div />').addClass('V2-popup-loading'), {key: 'badword_alert'});
+
+                var win = null;
+
+                $.wrapContent($('<div />'), {key: 'badword_alert', close_callback: function () {
+                        clearInterval(interval); // clear time down
+                        win.destroy(null, true);
+                    }});
+
+                win = $.create_window({
+                    destroy_hook: function () {
+                        $.unwrapContent('badword_alert');
+                    },
+                    title: 'Thông báo từ ban quản trị',
+                    content: container
+                });
+            } else {
+                _postComment(item, edit_callback);
+            }
+        });
+    };
+
+    var _gif_frm_listener = [];
+    var _gif_items = null;
+
+    function _loadGIFStart() {
+        var gif_frms = _getGIFFrmVisible();
+
+        $.each(gif_frms, function (k, gif_frm) {
+            gif_frm.find('.gif-list > ul').html('').append($('<li />').html('Loading...'));
+        });
+    }
+
+    function _loadGIFError(message) {
+        var gif_frms = _getGIFFrmVisible();
+    }
+
+    function _loadGIFOK() {
+        var gif_frms = _getGIFFrmVisible();
+
+        $.each(gif_frms, function (k, gif_frm) {
+            _renderGIFList(gif_frm);
+        });
+    }
+
+    function _getGIFFrmVisible() {
+        var buff = [];
+        var visible_frms = [];
+
+        for (var x = 0; x < _gif_frm_listener.length; x++) {
+            if (_gif_frm_listener[x] !== null && document.body.contains(_gif_frm_listener[x][0])) {
+                buff.push(_gif_frm_listener[x]);
+
+                if (_gif_frm_listener[x].is(':visible')) {
+                    visible_frms.push(_gif_frm_listener[x]);
+                }
+            }
+        }
+
+        _gif_frm_listener = buff;
+
+        return visible_frms;
+    }
+
+    function _autoPlayGIFList(gif_list, scroller) {
+        var scroll_top = scroller[0].scrollTop;
+        var scene_height = scroller.height();
+
+        gif_list.find('li').each(function () {
+            var item = $(this);
+
+            var pos_top = item.position().top;
+
+            if (pos_top >= scroll_top && pos_top <= (scroll_top + scene_height)) {
+                if (item[0].firstChild.nodeName === 'IMG') {
+                    $('<video />').attr({
+                        muted: 'muted',
+                        preload: 'metadata',
+                        loop: 'loop',
+                        autoplay: 'autoplay'
+                    }).append($('<source />').attr({type: 'video/mp4', src: item.attr('data-video-url')})).append(document.createTextNode('Your browser does not support the video tag.')).appendTo(item);
+
+                    item.find('img').remove();
+                }
+            } else {
+                if (item[0].firstChild.nodeName === 'VIDEO') {
+                    $('<img />').attr('src', item.attr('data-cover-url')).appendTo(item);
+                    item.find('video').remove();
+                }
+            }
+        });
+    }
+
+    function _resizeGIFListItem(gif_list) {
+        var list_width = gif_list.width() - 20;
+
+        var row_items = [];
+        var total_width = 0;
+        var max_height = 0;
+
+        var _resize_func = function () {
+            total_width = 0;
+
+            for (var i = 0; i < row_items.length; i++) {
+                var width = parseInt(row_items[i].getAttribute('data-width'));
+                var height = parseInt(row_items[i].getAttribute('data-height'));
+
+                if (height < max_height) {
+                    width = Math.floor(width * max_height / height);
+                }
+
+                total_width += width;
+            }
+
+            var ratio = (list_width / 3 * row_items.length) / total_width;
+
+            for (var i = 0; i < row_items.length; i++) {
+                var width = parseInt(row_items[i].getAttribute('data-width'));
+                var height = parseInt(row_items[i].getAttribute('data-height'));
+
+                if (height < max_height) {
+                    width = Math.floor(width * max_height / height);
+                    height = max_height;
+                }
+
+                $(row_items[i]).width(Math.floor(width * ratio)).height(Math.floor(height * ratio)).show();
+            }
+        };
+
+        gif_list.find('li').each(function (k, item) {
+            if (k % 3 === 0) {
+                _resize_func();
+                row_items = [];
+                max_height = 0;
+            }
+
+            row_items.push(item);
+
+            max_height = Math.max(max_height, parseInt(item.getAttribute('data-height')));
+        });
+
+        _resize_func();
+    }
+
+    function _renderGIFList(gif_frm, load_more_callback, gif_items, append_flag) {
+        if (typeof gif_items === 'undefined') {
+            if (_gif_items === null) {
+                _loadGifCollection();
+                return;
+            }
+
+            gif_items = _gif_items;
+        }
+
+        var gif_list = gif_frm.find('.gif-list > ul');
+        gif_list.removeAttr('loading');
+
+        if (!append_flag) {
+            gif_list.html('');
+        }
+
+        $.each(gif_items, function (k, item) {
+            $('<img />').attr('src', item.cover_url).appendTo($('<li />').attr({'data-video-url': item.video_url, 'data-cover-url': item.cover_url, 'data-width': item.width, 'data-height': item.height}).click(function () {
+                _postCommentIcon(gif_frm.closest('.V2-comment-frm'), null, {gif: item.id}, item.video_url);
+            }).appendTo(gif_list).hide());
+        });
+
+        _resizeGIFListItem(gif_list);
+
+        gif_list.parent().unbind().scroll(function () {
+            _autoPlayGIFList(gif_list, $(this));
+
+            if (typeof load_more_callback === 'undefined' || gif_list.attr('loading') === 'loading' || (this.scrollTop + $(this).height()) <= ($(this).find('> ul').outerHeight() - 100)) {
+                return;
+            }
+
+            gif_list.attr('loading', 'loading');
+
+            load_more_callback();
+        });
+
+        _autoPlayGIFList(gif_list, gif_list.parent());
+    }
+
+    function _searchGIF(gif_frm, keywords, offset, append_flag) {
+        offset = parseInt(offset);
+
+        if (isNaN(offset) || offset < 1) {
+            offset = 0;
+        }
+
+        $.ajax({
+            url: linkhay_url + '/gif/common/search',
+            type: 'post',
+            data: {keywords: keywords, offset: offset},
+            crossDomain: true,
+            xhrFields: {withCredentials: true},
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-OSC-Cross-Request': 'OK'
+            },
+            success: function (response) {
+                if (response.result !== 'OK') {
+                    alert(response.message);
+                    return;
+                }
+
+                _renderGIFList(gif_frm, response.data.items.length === 25 ? function () {
+                    _searchGIF(gif_frm, keywords, response.data.pagination.offset + response.data.pagination.count, true);
+                } : null, response.data.items, append_flag);
+            },
+            error: function () {
+                alert('Có lỗi xảy ra, vui lòng thử lại.');
+                _loadGIFError();
+            }
+        });
+    }
+
+    function _initGIFsForm(item) {
+        var gif_frm = item.find('.gif-frm');
+
+        if (!gif_frm[0]) {
+            return;
+        }
+
+        _gif_frm_listener.push(gif_frm);
+
+        var search_timer = null;
+        var set_search_timer = function () {
+            clearTimeout(search_timer);
+            search_timer = setTimeout(function () {
+                var keywords = keyword_input.val().trim();
+
+                if (keywords) {
+                    _searchGIF(gif_frm, keywords);
+                }
+            }, 1000);
+        };
+
+        var keyword_input = gif_frm.find('.search-frm input[type="text"]');
+
+        keyword_input.blur(function () {
+            clearTimeout(search_timer);
+        }).keydown(function (e) {
+            if (e.keyCode !== 13) {
+                set_search_timer();
+                return;
+            }
+
+            var keywords = keyword_input.val().trim();
+
+            if (keywords) {
+                _searchGIF(gif_frm, keywords);
+            } else {
+                _renderGIFList(gif_frm);
+            }
+        });
+
+        item.find('[data-tab="gifs"]').click(function () {
+            setTimeout(function () {
+                _renderGIFList(gif_frm);
+            }, 200);
+        });
+
+        var upload_status = null;
+
+        gif_frm.find('.upload-btn').oscV2_uploader({
+            max_files: 1,
+            max_connections: 1,
+            process_url: linkhay_post_url + '/gif/common/upload',
+            btn_content: '<i class="fa fa-plus"></i> Upload new GIF',
+            dragdrop_content: 'Drop here to upload',
+            extensions: ['mkv', 'gif', 'avi', 'flv', 'mp4', '3gp'],
+            xhrFields: {withCredentials: true},
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-OSC-Cross-Request': 'OK'
+            }
+        }).bind('uploader_add_file', function (e, file_id, file, file_name, file_size) {
+            upload_status = $('<div />').attr('data-step', 'upload').addClass('LHV2-simple-frm V2-gif-uploading');
+
+            var progress = $('<div />').addClass('upload-progress').appendTo(upload_status);
+            $('<div />').addClass('step').appendTo(progress);
+            $('<div />').addClass('progress-bar').appendTo(progress).append($('<div />'));
+            $('<div />').addClass('info').appendTo(progress).append($('<span />').html('Filename:')).append($('<span />').html(file_name));
+
+            $.wrapContent(upload_status, {key: 'gif_upload', close_callback: function () {
+                    return false;
+                }});
+
+            upload_status.moveToCenter();
+        }).bind('uploader_upload_progress', function (e, file_id, file, file_size, uploaded_size, uploaded_percent) {
+            if (parseInt(uploaded_percent) === 100) {
+                upload_status.attr('data-step', 'process');
+            } else {
+                upload_status.find('.progress-bar > div').css('width', uploaded_percent + '%');
+            }
+        }).bind('uploader_upload_complete', function (e, file_id, response, pointer) {
+            pointer.success = false;
+
+            upload_status = null;
+            $.unwrapContent('gif_upload', true);
+
+            eval('response = ' + response);
+
+            if (response.result !== 'OK') {
+                alert(response.message);
+                return;
+            }
+
+            _postComment(gif_frm.closest('.V2-comment-frm'), null, {gif: response.data.id});
+        }).bind('uploader_upload_error', function (e, file_id, error_code, error_message) {
+            upload_status = null;
+            $.unwrapContent('gif_upload', true);
+
+            alert('Có vấn đề xảy ra trong quá trình upload file, xin hãy thử lại');
+        });
+    }
+
+    function _loadGifCollection() {
+        _gif_items = null;
+
+        _loadGIFStart();
+
+        $.ajax({
+            url: linkhay_url + '/gif/common/loadCollection',
+            type: 'post',
+            crossDomain: true,
+            xhrFields: {withCredentials: true},
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-OSC-Cross-Request': 'OK'
+            },
+            success: function (response) {
+                if (response.result !== 'OK') {
+                    alert(response.message);
+                    _loadGIFError();
+                    return;
+                }
+
+                _gif_items = response.data.items;
+
+                _loadGIFOK();
+            },
+            error: function () {
+                alert('Có lỗi xảy ra, vui lòng thử lại.');
+                _loadGIFError();
+            }
+        });
+    }
+
+    var gif_list = {};
+
+    window.initGIFPlayer = function () {
+        var use_gif_flag = true;
+
+        if (this.getAttribute('data-giphy-video')) {
+            $('<img />').addClass('power-by-giphy').attr('src', $.base_url + '/resource/PowerByGiphy.png').appendTo(this);
+        }
+
+        if (document.body.getAttribute('lh-in-app')) {
+            $('<img />').addClass('gif').attr('src', this.getAttribute('data-lh-gif')).appendTo(this);
+            return;
+        }
+
+        var video = $('<video />').attr({
+            loop: 'loop',
+            muted: 'muted',
+            preload: 'metadata',
+            playsinline: 'playsinline'
+        });
+
+        video.append($('<source />').attr({type: 'video/mp4', src: this.getAttribute('data-lh-video')}));
+        video.append(document.createTextNode('Your browser does not support the video tag.'))
+
+        video.appendTo(this);
+
+        var scroller = $(this).closest('[data-scroller="1"]');
+
+        if (!scroller[0]) {
+            scroller = $(window);
+            var gif_list_id = 'window';
+        } else {
+            var gif_list_id = scroller.attr('data-gif-list');
+        }
+
+        if (!gif_list_id) {
+            gif_list_id = $.makeUniqid();
+            scroller.attr('data-gif-list', gif_list_id);
+        }
+
+        if (typeof gif_list[gif_list_id] === 'undefined') {
+            gif_list[gif_list_id] = {scroller: scroller, items: []};
+
+            scroller.scroll(function () {
+                for (var k in gif_list) {
+                    if (k === 'window') {
+                        continue;
+                    }
+
+                    if (!gif_list[k].scroller.is(':visible')) {
+                        delete gif_list[k];
+                    }
+                }
+
+                var gif_list_id = this === window ? 'window' : $(this).attr('data-gif-list');
+
+                var win_height = $(window).height();
+
+                $.each(gif_list[gif_list_id].items, function (k, item) {
+                    var boundary = item[0].getBoundingClientRect();
+
+                    if (boundary.top > 0 && boundary.top < win_height) {
+                        if (!item[0].isPlaying) {
+                            item[0].play();
+                            item.addClass('playing');
+                        }
+                    } else {
+                        if (item[0].isPlaying) {
+                            item[0].pause();
+                            item.removeClass('playing');
+                        }
+                    }
+                });
+            });
+        }
+
+        gif_list[gif_list_id].items.push($(this).find('video'));
+
+        scroller.trigger('scroll');
+    };
+
+    var _sticker_data = null;
+    var _sticker_frm_listener = [];
+
+    function _initStickerForm(item) {
+        var sticker_frm = item.find('.sticker-frm');
+
+        if (!sticker_frm[0]) {
+            return;
+        }
+
+        _sticker_frm_listener.push(sticker_frm);
+
+        item.find('[data-tab="stickers"]').click(function () {
+            setTimeout(function () {
+                _renderStickerList(sticker_frm);
+            }, 200);
+        });
+
+        sticker_frm.find('.add-btn').click(function () {
+            _renderStickerAddForm();
+        });
+
+        sticker_frm.find('.more-list').click(function () {
+            _renderStickerLoadMoreData();
+        });
+    }
+
+    function _getStickerFrmVisible() {
+        var buff = [];
+        var visible_frms = [];
+
+        for (var x = 0; x < _sticker_frm_listener.length; x++) {
+            if (_sticker_frm_listener[x] !== null && document.body.contains(_sticker_frm_listener[x][0])) {
+                buff.push(_sticker_frm_listener[x]);
+
+                if (_sticker_frm_listener[x].is(':visible')) {
+                    visible_frms.push(_sticker_frm_listener[x]);
+                }
+            }
+        }
+
+        _sticker_frm_listener = buff;
+
+        return visible_frms;
+    }
+
+    function _loadStickerStart() {
+        var sticker_frms = _getStickerFrmVisible();
+
+        $.each(sticker_frms, function (k, sticker_frm) {
+            sticker_frm.find('.sticker-item-list > ul').html('').append($('<li />').html('Loading...'));
+        });
+    }
+
+    function _loadStickerError(message) {
+        var sticker_frms = _getStickerFrmVisible();
+    }
+
+    function _loadStickerOK() {
+        var sticker_frms = _getStickerFrmVisible();
+
+        $.each(sticker_frms, function (k, sticker_frm) {
+            _renderStickerList(sticker_frm);
+        });
+    }
+
+    function _loadSticker() {
+        _sticker_data = null;
+
+        _loadStickerStart();
+
+        $.ajax({
+            url: linkhay_url + '/sticker/common/loadData',
+            type: 'post',
+            crossDomain: true,
+            xhrFields: {withCredentials: true},
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-OSC-Cross-Request': 'OK'
+            },
+            success: function (response) {
+                if (response.result !== 'OK') {
+                    alert(response.message);
+                    _loadStickerError();
+                    return;
+                }
+
+                _sticker_data = response.data.stickers;
+
+                _loadStickerOK();
+            },
+            error: function () {
+                alert('Có lỗi xảy ra, vui lòng thử lại.');
+                _loadStickerError();
+            }
+        });
+    }
+
+    function _renderStickerList(sticker_frm) {
+        if (_sticker_data === null) {
+            _loadSticker();
+            return;
+        }
+        var sticker_box = sticker_frm.find('.sticker-list');
+
+        var sticker_list = sticker_frm.find('.sticker-list > ul');
+
+        sticker_list.removeAttr('loading');
+
+        sticker_list.html('');
+        var j = 0;
+        $.each(_sticker_data, function (k, sticker) {
+            if (parseInt(k) === 0 && _sticker_data[0].items != '') {
+                var icon = $('<i />').addClass('fa fa-clock-o');
+                var member_sticker_flag = 1;
+            } else {
+                var icon = $('<img />').attr('src', sticker.cover_url);
+                var member_sticker_flag = sticker.member_sticker_flag;
+            }
+
+            if (member_sticker_flag === 1) {
+                j += 1;
+
+                icon.appendTo($('<li />').click(function () {
+                    var sticker_item_list = sticker_frm.find('.sticker-item-list > ul');
+
+                    sticker_item_list.removeAttr('loading');
+
+                    sticker_item_list.html('');
+
+                    $.each(_sticker_data[k].items, function (x, item) {
+
+                        $('<img />').attr('src', item.url).appendTo($('<li />').click(function () {
+                            _postCommentIcon(sticker_frm.closest('.V2-comment-frm'), null, {sticker: item.id}, item.url);
+                        }).appendTo(sticker_item_list));
+                    });
+                }).appendTo(sticker_list));
+
+            }
+
+        });
+
+        sticker_frm.find('.previous-btn').remove();
+
+        sticker_frm.find('.next-btn').remove();
+
+        var attr = (parseInt(j) > 4) ? '' : 'hidden';
+
+        $('<i />').addClass('fa fa-angle-left').appendTo($('<div class= "previous-btn" data-insert-cb = "sliderSticker" ' + attr + '/>').appendTo(sticker_box));
+
+        $('<i />').addClass('fa fa-angle-right').appendTo($('<div  class= "next-btn" data-insert-cb = "sliderSticker" ' + attr + '/>').appendTo(sticker_box));
+
+
+
+        $(sticker_list[0].firstChild).trigger('click');
+    }
+
+
+
+    var isInUse = false;
+    var currentTabIndex = 0;
+    var maxLeftValue = 0;
+    var tabsWidth = 0;
+    var containerWidth = 0;
+
+
+    window.sliderSticker = function () {
+        // body...
+        var leftBtn = $('.previous-btn');
+        var rightBtn = $('.next-btn');
+        var tabsLeftOffcet = parseInt($('.sticker-list ul').css('left'));
+
+        $('.sticker-list ul li').each(function () {
+            tabsWidth += parseInt($('.sticker-list ul li').outerWidth());
+
+        });
+
+        containerWidth = parseInt($('.sticker-list').outerWidth());
+
+        maxLeftValue = (tabsWidth - containerWidth) * -1;
+
+        if (currentTabIndex == 0)
+            leftBtn.hide();
+
+        if (maxLeftValue > 0 || maxLeftValue >= tabsLeftOffcet) {
+            rightBtn.hide();
+        } else
+            rightBtn.show();
+
+        leftBtn.bind('click', function () {
+            if (isInUse === false && currentTabIndex > 0) {
+                isInUse = true;
+                moveSliderSticker('right', leftBtn, rightBtn);
+            }
+            return false; // Keep the link from firing
+        });
+
+        rightBtn.bind('click', function () {
+            if (isInUse === false && currentTabIndex >= 0) {
+                isInUse = true;
+                moveSliderSticker('left', rightBtn, leftBtn);
+            }
+            return false; // Keep the link from firing
+        });
+
+    }
+
+    function moveSliderSticker(direction, btn, otherBtn) {
+        var l = parseInt($('.sticker-list ul').css('left'));
+        var targetTabIndex = (direction == 'left') ? currentTabIndex : currentTabIndex - 1
+        var w = $('.sticker-list ul li:eq(' + targetTabIndex + ')').outerWidth();
+
+        if (isNaN(l)) {
+            l = 0;
+        }
+
+        var m = (direction == 'left') ? l - w : l + w;
+
+        if (direction == 'left') {
+            currentTabIndex++;
+        } else {
+            currentTabIndex--;
+        }
+
+        if (m <= 0) {
+
+            $('.sticker-list ul').animate({'left': m + 'px'}, 200, function () {
+                isInUse = false;
+            });
+
+            if (m == 0 || (m <= maxLeftValue && direction == 'left')) {
+                btn.fadeOut(200);
+            }
+            if (direction == 'left' || m >= maxLeftValue) {
+                otherBtn.fadeIn(200);
+            }
+        } else {
+            isInUse = false;
+        }
+    }
+
+    function _renderStickerAddForm() {
+        var container = $('<div />').addClass('LHV2-simple-frm V2-sticker-add-frm');
+
+        $.wrapContent(container, {key: 'sticker_upload'});
+
+        var row = $('<div />').addClass('row').appendTo(container);
+
+        var cell = $('<div />').addClass('cell').appendTo(row);
+
+        $('<label />').html('Cover').appendTo(cell);
+        var cover_uploader = $('<div />').addClass('cover-uploader').appendTo($('<div />').addClass('cover-uploader-wrap').appendTo(cell));
+
+        cover_uploader.oscV2_uploader({
+            max_files: 1,
+            max_connections: 1,
+            process_url: linkhay_post_url + '/sticker/common/upload',
+            btn_content: '<i class="fa fa-file"></i>',
+            dragdrop_content: 'Kéo và thả file vào đây để upload...',
+            image_mode: true,
+            xhrFields: {withCredentials: true},
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-OSC-Cross-Request': 'OK'
+            }
+        }).bind('uploader_add_file', function (e, file_id, file, file_name, file_size) {
+            cover_uploader.parent().attr('file-id', file_id).attr('data-uploader-step', 'queue').append($('<div />').addClass('uploader-progress-bar').append($('<div />')));
+
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                if (cover_uploader.parent().attr('file-id') !== file_id) {
+                    return;
+                }
+
+                cover_uploader.parent().css('background-image', 'url(' + e.target.result + ')');
+            };
+            reader.readAsDataURL(file);
+        }).bind('uploader_upload_progress', function (e, file_id, file, file_size, uploaded_size, uploaded_percent) {
+            if (cover_uploader.parent().attr('file-id') !== file_id) {
+                return;
+            }
+
+            if (parseInt(uploaded_percent) === 100) {
+                cover_uploader.parent().attr('data-uploader-step', 'process');
+            } else {
+                cover_uploader.parent().attr('data-uploader-step', 'upload');
+                cover_uploader.parent().find('.uploader-progress-bar > div').css('width', uploaded_percent + '%');
+            }
+        }).bind('uploader_upload_complete', function (e, file_id, response, pointer) {
+            pointer.success = false;
+
+            if (cover_uploader.parent().attr('file-id') !== file_id) {
+                return;
+            }
+
+            cover_uploader.parent().find('.uploader-progress-bar').remove();
+
+            eval('response = ' + response);
+
+            if (response.result !== 'OK') {
+                alert(response.message);
+                return;
+            }
+
+            cover_uploader.parent().attr('data-file', response.data.url).css('background-image', 'url(' + response.data.url + ')');
+        }).bind('uploader_upload_error', function (e, file_id, error_code, error_message) {
+            if (cover_uploader.parent().attr('file-id') !== file_id) {
+                return;
+            }
+
+            cover_uploader.parent().find('.uploader-progress-bar').remove();
+
+            alert('Có vấn đề xảy ra trong quá trình upload file, xin hãy thử lại');
+        });
+
+        var cell = $('<div />').addClass('cell').appendTo(row);
+
+        $('<label />').html('Sticker name').appendTo(cell);
+        var name_input = $('<input />').attr('type', 'text').appendTo($('<div />').addClass('input-wrap').appendTo(cell));
+
+        $('<label />').html('Sticker items').appendTo($('<div />').addClass('sitcker-item-list-label').appendTo(container));
+
+        var item_list = $('<ul />').addClass('sticker-item-list').appendTo(container);
+
+        var uploader = $('<div />').addClass('sticker-uploader').appendTo($('<li />').appendTo(item_list));
+
+        uploader.oscV2_uploader({
+            max_files: 0,
+            max_connections: 5,
+            process_url: linkhay_post_url + '/sticker/common/upload',
+            btn_content: '<i class="fa fa-plus"></i>',
+            dragdrop_content: 'Kéo và thả file vào đây để upload...',
+            image_mode: true,
+            xhrFields: {withCredentials: true},
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-OSC-Cross-Request': 'OK'
+            }
+        }).bind('uploader_add_file', function (e, file_id, file, file_name, file_size) {
+            var item = $('<li />').attr('file-id', file_id).attr('data-uploader-step', 'queue').addClass('sticker-item').append($('<i />').addClass('fa fa-close').click(function () {
+                $(this).parent().remove();
+            })).insertBefore(item_list[0].lastChild);
+
+            $('<div />').addClass('uploader-progress-bar').appendTo(item).append($('<div />'));
+            $('<div />').addClass('step').appendTo(item);
+
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                var item = item_list.find('> [file-id="' + file_id + '"]');
+
+                if (!item[0]) {
+                    return;
+                }
+
+                item.css('background-image', 'url(' + e.target.result + ')');
+            };
+            reader.readAsDataURL(file);
+        }).bind('uploader_upload_progress', function (e, file_id, file, file_size, uploaded_size, uploaded_percent) {
+            var item = item_list.find('> [file-id="' + file_id + '"]');
+
+            if (!item[0]) {
+                return;
+            }
+
+            if (parseInt(uploaded_percent) === 100) {
+                item.attr('data-uploader-step', 'process');
+            } else {
+                item.attr('data-uploader-step', 'upload');
+                item.find('.uploader-progress-bar > div').css('width', uploaded_percent + '%');
+            }
+        }).bind('uploader_upload_complete', function (e, file_id, response, pointer) {
+            pointer.success = false;
+
+            var item = item_list.find('> [file-id="' + file_id + '"]');
+
+            if (!item[0]) {
+                return;
+            }
+
+            eval('response = ' + response);
+
+            if (response.result !== 'OK') {
+                alert(response.message);
+                item.remove();
+                return;
+            }
+
+            item.removeAttr('file-id').attr('data-file', response.data.url).css('background-image', 'url(' + response.data.url + ')');
+
+            item.find('.uploader-progress-bar').remove();
+            item.find('.step').remove();
+        }).bind('uploader_upload_error', function (e, file_id, error_code, error_message) {
+            var item = item_list.find('> [file-id="' + file_id + '"]');
+
+            if (!item[0]) {
+                return;
+            }
+
+            alert('Có vấn đề xảy ra trong quá trình upload file, xin hãy thử lại');
+            item.remove();
+        });
+
+        var save_btn = $('<div />').addClass('btn blue-btn').html('Submit').appendTo($('<div />').addClass('action-bar').appendTo(container)).click(function (e) {
+            if (save_btn.attr('disabled') === 'disabled') {
+                return;
+            }
+
+            var post_data = {
+                name: name_input.val().trim(),
+                cover: cover_uploader.parent().attr('data-file'),
+                items: []
+            };
+
+            item_list.find('> li[data-file]').each(function () {
+                post_data.items.push(this.getAttribute('data-file'));
+            });
+
+            if (!post_data.name) {
+                alert('Bạn cần điền tên cho sticker');
+                name_input[0].focus();
+                return;
+            }
+
+            if (!post_data.cover) {
+                alert('Bạn cần upload cover cho sticker');
+                return;
+            }
+
+            if (post_data.items.length < 1) {
+                alert('Bạn cần upload ít nhất 1 item cho sticker');
+                return;
+            }
+
+            var total_not_complete_file = item_list.find('> li[file-id]').length;
+
+            if (total_not_complete_file > 0 && !window.confirm("Vẫn còn " + total_not_complete_file + " file chưa upload xong, nếu save sticker bây giờ những file này sẽ không được cập nhật.\nBạn có muốn tiếp tục?")) {
+                return;
+            }
+
+            save_btn.attr('disabled', 'disabled');
+
+            $.ajax({
+                url: linkhay_post_url + '/sticker/common/save',
+                type: 'post',
+                data: post_data,
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                success: function (response) {
+                    save_btn.removeAttr('disabled');
+
+                    if (response.result !== 'OK') {
+                        alert(response.message);
+                        return;
+                    }
+
+                    if (parseInt(response.data.flag) === 0) {
+                        alert('Sticker của bạn cần được admin duyệt trước khi có thể sử dụng');
+                    }
+
+                    $.unwrapContent('sticker_upload');
+
+                    _loadSticker();
+                },
+                error: function () {
+                    save_btn.removeAttr('disabled');
+                    alert('Có lỗi xảy ra, vui lòng thử lại.');
+                }
+            });
+        });
+    }
+
+    function _renderStickerLoadMoreData() {
+        var container = $('<div />').addClass('LHV2-simple-frm V2-sticker-add-frm');
+
+        $.wrapContent(container, {key: 'sticker_load_more_'});
+
+        var row = $('<div />').addClass('row').appendTo(container);
+
+        var list = $('<div />').addClass('sticker-list').appendTo(row);
+
+        $.ajax({
+            url: linkhay_url + '/sticker/common/loadData',
+            type: 'post',
+            crossDomain: true,
+            xhrFields: {withCredentials: true},
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-OSC-Cross-Request': 'OK'
+            },
+            success: function (response) {
+
+                if (response.result !== 'OK') {
+                    alert(response.message);
+                    _loadStickerError();
+                    return;
+                }
+
+                var _sticker_data = response.data.stickers;
+
+                $.each(_sticker_data, function (i, sticker) {
+
+                    if (parseInt(i) !== 0) {
+                        var sticker_item = $('<div />').addClass('sticker-box').appendTo(list);
+
+                        $('<label />').html(sticker.name).addClass('name-sticker').appendTo(sticker_item);
+
+                        var box = $('<div />').addClass('box-img').appendTo(sticker_item);
+
+                        var cover = $('<div />').addClass('cover-sticker').appendTo(box);
+
+                        $('<img src=' + sticker.cover_url + ' />').addClass('cover-sticker').appendTo(cover);
+
+                        var items = $('<div />').addClass('items-sticker').appendTo(box);
+
+                        $.each(sticker.items, function (j, item) {
+                            if (j > 5) {
+                                return false;
+                            }
+                            $('<img src="' + item.url + '"  style="width: 50px" />').addClass('cover-sticker').appendTo(items);
+
+                        });
+
+                        var detail = $('<div />').addClass('action').appendTo(sticker_item);
+
+                        $('<button />').html(sticker.member_sticker_flag == 1 ? 'Bỏ Sử Dụng' : 'Sử Dụng').attr({'data-id': sticker.id}).addClass(sticker.member_sticker_flag == 1 ? 'btn btn-red' : 'btn btn-blue').appendTo(detail).click(function (e) {
+                            var btn_use_sticker = $(this);
+
+                            if (btn_use_sticker.attr('disabled') === 'disabled') {
+                                return;
+                            }
+
+                            btn_use_sticker.attr('disabled', 'disabled');
+
+                            var sticker_id = btn_use_sticker.attr('data-id');
+                            $.ajax({
+                                url: linkhay_url + '/sticker/common/memberUseSticker',
+                                type: 'post',
+                                crossDomain: true,
+                                xhrFields: {withCredentials: true},
+                                data: {sticker_id: sticker_id},
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'X-OSC-Cross-Request': 'OK'
+                                },
+                                success: function (response) {
+
+                                    if (response.result !== 'OK') {
+                                        alert(response.message);
+                                        return;
+                                    }
+                                    btn_use_sticker.html(response.data.text_btn);
+
+                                    btn_use_sticker.removeClass();
+
+                                    btn_use_sticker.addClass('btn btn-' + response.data.color_btn);
+
+                                    alert(response.data.message);
+
+                                    btn_use_sticker.removeAttr('disabled');
+
+                                    _loadSticker();
+                                },
+                                error: function () {
+                                    alert('Có lỗi xảy ra, vui lòng thử lại.');
+                                }
+                            });
+                        });
+
+                        $('<button />').html('Xem thêm').attr({'data-id': sticker.id, 'data-name': sticker.name, 'data-cover': sticker.cover_url}).addClass('btn').appendTo(detail).click(function (e) {
+                            var btn_readmore_sticker = $(this);
+                            var sticker_id = btn_readmore_sticker.attr('data-id');
+                            var sticker_name = btn_readmore_sticker.attr('data-name');
+                            var sticker_cover = btn_readmore_sticker.attr('data-cover');
+
+                            var win = null;
+
+                            var container = $('<div />').addClass('LHV2-simple-frm V2-sticker-add-frm');
+
+
+                            var row = $('<div />').addClass('row').appendTo(container);
+
+                            var cell = $('<div />').addClass('cell').appendTo(row);
+
+                            $('<label />').html('Cover').appendTo(cell);
+                            var cover_uploader = $('<div />').addClass('cover-uploader').appendTo($('<div />').addClass('cover-uploader-wrap').appendTo(cell));
+
+                            $('<img src="' + sticker_cover + '" width="50px">').appendTo(cover_uploader);
+
+                            var cell = $('<div />').addClass('cell').appendTo(row);
+
+                            $('<label />').html('Sticker name').appendTo(cell);
+                            var name_input = $('<input />').attr('type', 'text').attr('value', sticker_name).attr('disabled', 'disabled').appendTo($('<div />').addClass('input-wrap').appendTo(cell));
+
+                            $('<label />').html('Sticker items').appendTo($('<div />').addClass('sitcker-item-list-label').appendTo(container));
+
+                            var item_list = $('<ul />').addClass('sticker-item-list').appendTo(container);
+
+                            var uploader = $('<div />').addClass('sticker-uploader').appendTo($('<li />').appendTo(item_list));
+
+                            var html = $('<ul />').addClass('sticker-item-list').appendTo(container);
+
+                            $.ajax({
+                                url: linkhay_url + '/sticker/common/loadItems',
+                                type: 'post',
+                                crossDomain: true,
+                                xhrFields: {withCredentials: true},
+                                data: {id: sticker_id},
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'X-OSC-Cross-Request': 'OK'
+                                },
+                                success: function (response) {
+
+                                    if (response.result !== 'OK') {
+                                        alert(response.message);
+                                        return;
+                                    }
+
+                                    var items = response.data.items;
+
+                                    for (var i = 0; i < items.length; i++) {
+                                        var item = $('<li />').attr('item-id', items[i]['item_id']).addClass('sticker-item').insertBefore(item_list[0].lastChild);
+                                        item.css('background-image', 'url(' + items[i]['url'] + ')');
+                                    }
+                                },
+                                error: function () {
+                                    alert('Có lỗi xảy ra, vui lòng thử lại.');
+                                }
+                            });
+
+
+                            $.wrapContent(container, {key: 'sticker_view'});
+                        });
+                    }
+
+                });
+
+            },
+            error: function () {
+                alert('Có lỗi xảy ra, vui lòng thử lại.');
+                _loadStickerError();
+            }
+        });
+
+
+    }
+
+    window.initStickerPlayer = function () {
+
+    };
+
+    function _loadPopupSticker() {
+
+        $.each(_sticker_data, function (k, sticker) {
+            if (parseInt(k) === 0) {
+                var icon = $('<i />').addClass('fa fa-clock-o');
+            } else {
+                var icon = $('<img />').attr('src', sticker.cover_url);
+            }
+
+            icon.appendTo($('<li />').click(function () {
+                var sticker_item_list = sticker_frm.find('.sticker-item-list > ul');
+
+                sticker_item_list.removeAttr('loading');
+
+                sticker_item_list.html('');
+
+                $.each(_sticker_data[k].items, function (x, item) {
+                    $('<img />').attr('src', item.url).appendTo($('<li />').click(function () {
+                        _postCommentIcon(sticker_frm.closest('.V2-comment-frm'), null, {sticker: item.id}, item.url);
+                    }).appendTo(sticker_item_list));
+                });
+            }).appendTo(sticker_list));
+        });
+    }
+
+    window.preGotoCommentFrm = function () {
+        $(this).click(function () {
+            if (typeof linkhayEditors['editor-main'] !== 'undefined') {
+                quill.setSelection(0, Quill.sources.USER);
+                quill.focus();
+            } else {
+                $(this).closest('.V2-comments').find('> .V2-comment-frm textarea')[0].focus();
+            }
+        });
+    };
+
+    window.initCommentQuoteBtn = function () {
+        var comment_item = $(this).closest('li');
+        var linkId = comment_item.find('> .V2-comment-item').data('link-id');
+
+        $(this).click(function () {
+            if (linkhayEditors !== null && typeof(linkhayEditors['editor-main']) !== 'undefined') {
+                return window.initCommentQuoteBtnRawData.apply(this);
+            }
+
+            var sub_list = null;
+            var comment_frm = null;
+
+            if (CURRENT_COMMENT_FRM) {
+                comment_frm = CURRENT_COMMENT_FRM;
+            } else {
+                if (comment_item.parent().prev()[0] && comment_item.parent().prev().hasClass('V2-comment-item')) {
+                    sub_list = comment_item.parent();
+                } else {
+                    sub_list = comment_item.find(' > ul');
+                }
+
+                comment_frm = sub_list.find('.V2-comment-frm');
+
+                if (!comment_frm[0]) {
+                    if (sub_list[0]) {
+                        sub_list.prev().find('.mrk-reply-btn').trigger('click', [true]);
+                    } else {
+                        comment_item.find('> .V2-comment-item .mrk-reply-btn').trigger('click', [true]);
+                        sub_list = comment_item.find('> ul');
+                    }
+
+                    comment_frm = sub_list.find('.V2-comment-frm');
+                } else if (comment_frm.attr('disabled') === 'disabled') {
+                    return;
+                }
+            }
+
+            var textarea = comment_frm.find('textarea');
+
+            var quote_content = '[quote=' + comment_item.find('> .V2-comment-item').attr('comment-id') + ']' + $('<div />').html(comment_item.find('> .V2-comment-item .V2-comment-body').html().replace(/<br\s*\/?>/ig, "\n")).text().trim() + '[/quote]';
+
+            var selection_data = _commentEditor_getSelection.apply(textarea[0]);
+
+            var text = textarea[0].value;
+
+            var new_text = text.substring(0, selection_data.start) + quote_content + text.substring(selection_data.end, text.length);
+
+            textarea[0].value = new_text;
+
+
+            selection_data.start = selection_data.end = selection_data.start + quote_content.length;
+
+            _commentEditor_setSelection.apply(textarea[0], [selection_data.start, selection_data.end]);
+
+            textarea[0].focus();
+        });
+    };
+
+    window.preCommentReplyBtn = function () {
+        var self = $(this);
+        var comment_item = $(this).closest('li'), reply_to = $(this).attr('reply-to').toLowerCase();
+        var linkId = comment_item.find('> .V2-comment-item').data('link-id');
+
+
+        $(this).click(function (e, skip_mention) {
+            if (linkhayEditors !== null && typeof(linkhayEditors['editor-main']) !== 'undefined') {
+                return window.preCommentReplyBtnRawData.apply(this);
+            }
+
+            var sub_list;
+
+            if (comment_item.parent().prev()[0] && comment_item.parent().prev().hasClass('V2-comment-item')) {
+                sub_list = comment_item.parent();
+            } else {
+                sub_list = comment_item.find('> ul');
+
+                if (!sub_list[0]) {
+                    sub_list = $('<ul />').appendTo(comment_item);
+                }
+            }
+
+            var comment_frm = sub_list.find('.V2-comment-frm');
+
+            if (!comment_frm[0]) {
+                comment_frm = comment_frm_tpl.clone();
+                comment_frm.attr('act', 'reply').find('.editor > .tile > .name').html('Trả lời');
+                sub_list.append($('<li />').append(comment_frm));
+
+                comment_frm.attr('parent-id', sub_list.prev().attr('comment-id'));
+
+                preCommentFrm.apply(comment_frm[0], [function () {
+                    sub_list.children().last().remove();
+
+                    if (sub_list.children().length < 1) {
+                        sub_list.remove();
+                    }
+                }]);
+            } else if (comment_frm.attr('disabled') === 'disabled') {
+                return;
+            }
+            // console.log(arguments);
+            if (skip_mention) {
+                return;
+            }
+
+            comment_frm.attr('reply-comment-id', self.data('comment-id'));
+
+            var textarea = comment_frm.find('textarea');
+
+            if (textarea.val().toLowerCase().indexOf('@' + reply_to) >= 0) {
+                comment_frm.parent().remove();
+
+                if (sub_list.children().length < 1) {
+                    sub_list.remove();
+                }
+            } else {
+                var new_value = ('@' + reply_to + ' ' + textarea.val()).trim() + ' ';
+
+                textarea.val(new_value);
+                textarea[0].focus();
+
+                textarea[0].selectionStart = new_value.length;
+                textarea[0].selectionEnd = new_value.length;
+            }
+        });
+    };
+
+    window.preGetCommentVoters = function () {
+        var item = $(this);
+        item.click(function () {
+            $.wrapContent($('<div />').addClass('V2-popup-loading'), {key: 'comment_voter'});
+            $.ajax({
+                url: linkhay_url + '/comment/item/getVoterList/id/' + item.closest('.V2-comment-vote').attr('comment-id'),
+                type: 'get',
+                success: function (response) {
+                    if (response.result !== 'OK') {
+                        alert(response.message);
+                        $.unwrapContent('comment_voter');
+                        return;
+                    }
+
+                    $.wrapContent(response.data.html, {key: 'comment_voter'});
+                }
+            });
+        });
+    };
+
+    window.commenVoteProcess = false;
+
+    window.preCommentVote = function () {
+        const actionVote = function(voter, vote_box) {
+            if (window.commenVoteProcess == true) {
+                return false;
+            }
+            var commentId = vote_box.attr('comment-id'),
+                linkId = vote_box.attr('link-id');
+            voter.attr('disabled', 'disabled');
+
+            const voteData = {
+                id: vote_box.attr('comment-id'),
+                confirm: 1
+            };
+
+            let captchaInput = $('.captcha-input', $('#linkhay-popup-container .captcha-container'));
+            voteData.challenge_type = 'commentVote';
+            if (captchaInput.length) {
+                voteData.restrict_verify_code = captchaInput.val();
+            }
+
+            $.ajax({
+                url: linkhay_url + '/comment/item/vote',
+                type: 'post',
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                beforeSend: function() {
+                    window.commenVoteProcess = true;
+                },
+                data: voteData,
+                success: function (response) {
+                    window.commenVoteProcess = false;
+                    if (response.status == 4) {
+                        var restrictAccess = $('body').linkhayRestrictAccess({
+                            restrictType: response.restrict_type,
+                            challengeType: 'commentVote'
+                        });
+                        restrictAccess.show(response, function() {
+                            actionVote(voter, vote_box)
+                        });
+                    } else {
+                        if (response.result !== 'OK') {
+                            voter.removeAttr('disabled');
+                            alert(response.message);
+                            return;
+                        }
+
+                        voter.find('.comment-vote').css("color", "#78a15d");
+
+                        vote_box.find('.counter').html(response.data);
+
+                        let voteConfirm = parseInt(voter.data('like-comment-confirm'));
+                        voteConfirm = isNaN(voteConfirm) ? 1 : voteConfirm;
+                        voteConfirm++;
+                        if (voteConfirm <= 3) {
+                            $('[data-like-comment-confirm]').attr('data-like-comment-confirm', voteConfirm);
+                        }
+
+                        /** event logging **/
+                        try {
+                            window.LINKHAY_LOGGING.event('comment', 'vote', {
+                                link_id: linkId,
+                                comment_id: commentId
+                            });
+                        } catch (e) {
+                            console.log('[LOGGING ERROR]: ', e);
+                        }
+                    }
+                }
+            });
+        };
+
+        var voter = $(this);
+        voter.bind('click.vote', function () {
+            if (voter.attr('disabled') === 'disabled') {
+                return;
+            }
+
+            var vote_box = voter.closest('.V2-comment-vote');
+            var container = voter.closest('.V2-comment-item');
+            // confirm vote comment
+
+            const likeCommentConfirm = parseInt(voter.data('like-comment-confirm'));
+            if (isNaN(likeCommentConfirm)) {
+                actionVote(voter, vote_box)
+            } else {
+                commentVoteConfirm(voter, vote_box, $(container).data('username'), 10, parseInt(voter.data('like-comment-confirm')), actionVote);
+            }
+        });
+    };
+
+    window.commentVoteConfirm = function(voter, el, username, token, counter, callback) {
+        if (typeof(isLoggedIn) == 'undefined' || !isLoggedIn) {
+            alert('Bạn cần đăng nhập để thực hiện tác vụ này!')
+            return false;
+        }
+
+        if (window.commenVoteProcess == true) {
+            return false;
+        }
+
+        const maxCounter = 3;
+        counter = isNaN(counter) ? 0 : counter;
+        counter++;
+
+        $('.V2-comment-vote-confirm, .V2-comment-vote-confirm-bg-overlay').remove();
+
+        if (counter > maxCounter) {
+            callback(voter, el);
+        } else {
+            let templatePC = `<div id="comment-vote-confirm" class="V2-comment-vote-confirm">
+                                    <div class="container">
+                                    <div class="body">
+                                        <div class="header">
+                                            <h4>LIKE VÀ TẶNG TOKEN</h4>
+                                            <button class="btn-vote-token-close">
+                                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <rect width="14" height="14" rx="2" fill="#E5646C"/>
+                                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M10.5555 3.44444C10.801 3.6899 10.801 4.08787 10.5555 4.33333L4.33331 10.5556C4.08785 10.801 3.68989 10.801 3.44443 10.5556C3.19897 10.3101 3.19897 9.91213 3.44443 9.66667L9.66664 3.44444C9.9121 3.19898 10.3101 3.19898 10.5555 3.44444Z" fill="white"/>
+                                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M3.44472 3.44444C3.69018 3.19898 4.08814 3.19898 4.3336 3.44444L10.5558 9.66667C10.8013 9.91213 10.8013 10.3101 10.5558 10.5556C10.3104 10.801 9.91239 10.801 9.66693 10.5556L3.44472 4.33333C3.19926 4.08787 3.19926 3.6899 3.44472 3.44444Z" fill="white"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="vote-confirm-content">
+                                            <p>Bạn sẽ tặng cho </span><strong>${username}</strong> <strong>10 token</strong> <span>khi thích bình luận</span></p>
+                                            <p>Thông báo này sẽ xuất hiện 3 lần</p>
+                                            <div class="counter-remaining">${counter}/3</div> 
+                                        </div>
+                                    </div>
+                                    <div class="footer clearfix">
+                                        <button class="btn-vote-token">Like và tặng token</button>
+                                        <button class="btn-vote-token-close">Không đồng ý</button>
+                                    </div>
+                                </div>`,
+                templateMobile = `<div id="comment-vote-confirm" class="V2-comment-vote-confirm">
+                                <div class="container">
+                                    <div class="body">
+                                        <div class="header">
+                                            <svg width="34" height="43" viewBox="0 0 34 43" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <g filter="url(#filter0_d)">
+                                                    <path d="M17 7L27.3923 13V25L17 31L6.6077 25V13L17 7Z" fill="url(#paint0_linear)"/>
+                                                    <path d="M17.5 6.13397L17 5.8453L16.5 6.13397L6.1077 12.134L5.6077 12.4226V13V25V25.5774L6.1077 25.866L16.5 31.866L17 32.1547L17.5 31.866L27.8923 25.866L28.3923 25.5774V25V13V12.4226L27.8923 12.134L17.5 6.13397Z" stroke="white" stroke-width="2"/>
+                                                </g>
+                                                <g filter="url(#filter1_dd)">
+                                                    <path d="M18.3143 11L11 21H17.4L16.3333 27L23.8 16.7143L17.4 17L18.3143 11Z" fill="url(#paint1_linear)"/>
+                                                </g>
+                                                <defs>
+                                                    <filter id="filter0_d" x="0.607666" y="0.690598" width="32.7846" height="36.6188" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+                                                        <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+                                                        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"/>
+                                                        <feOffset/>
+                                                        <feGaussianBlur stdDeviation="2"/>
+                                                        <feColorMatrix type="matrix" values="0 0 0 0 0.8875 0 0 0 0 0.8875 0 0 0 0 0.8875 0 0 0 1 0"/>
+                                                        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+                                                        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+                                                    </filter>
+                                                    <filter id="filter1_dd" x="3" y="11" width="28.8" height="32" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+                                                        <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+                                                        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"/>
+                                                        <feOffset dy="8"/>
+                                                        <feGaussianBlur stdDeviation="4"/>
+                                                        <feColorMatrix type="matrix" values="0 0 0 0 0.196487 0 0 0 0 0.196487 0 0 0 0 0.279476 0 0 0 0.02 0"/>
+                                                        <feBlend mode="multiply" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+                                                        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"/>
+                                                        <feOffset dy="4"/>
+                                                        <feGaussianBlur stdDeviation="2"/>
+                                                        <feColorMatrix type="matrix" values="0 0 0 0 0.196487 0 0 0 0 0.196487 0 0 0 0 0.279476 0 0 0 0.04 0"/>
+                                                        <feBlend mode="multiply" in2="effect1_dropShadow" result="effect2_dropShadow"/>
+                                                        <feBlend mode="normal" in="SourceGraphic" in2="effect2_dropShadow" result="shape"/>
+                                                    </filter>
+                                                    <linearGradient id="paint0_linear" x1="29" y1="7" x2="17" y2="31" gradientUnits="userSpaceOnUse">
+                                                        <stop stop-color="#FFF9DD"/>
+                                                        <stop offset="0.796875" stop-color="#FFE5BF"/>
+                                                    </linearGradient>
+                                                    <linearGradient id="paint1_linear" x1="21.56" y1="14.9385" x2="15.3033" y2="25.7913" gradientUnits="userSpaceOnUse">
+                                                        <stop stop-color="#FFC93E"/>
+                                                        <stop offset="0.793514" stop-color="#FF9500"/>
+                                                    </linearGradient>
+                                                </defs>
+                                            </svg>
+                        
+                                            <div class="counter-remaining">${counter}/3</div>
+                                        </div>
+                                        <div class="vote-confirm-content">
+                                            <p>Bạn sẽ tặng cho </span><strong>${username}</strong></p>
+                                            <p><strong>10 token</strong> <span>khi thích bình luận</span></p>
+                                        </div>
+                                    </div>
+                                    <div class="footer">
+                                        <button class="btn-vote-token">Like và tặng token</button>
+                                        <button class="btn-vote-token-close">Bỏ qua</button>
+                                    </div>
+                                </div>
+                            </div>`;
+            let template = typeof LH_TPL_MOBILE_ENV_FLAG !== 'undefined' && LH_TPL_MOBILE_ENV_FLAG === 1 ? templateMobile : templatePC;
+
+            if (LH_TPL_MOBILE_ENV_FLAG === 1) {
+                $(el).append(template);
+            } else {
+                $('body').append('<div class="V2-comment-vote-confirm-bg-overlay"></div>').css({position: 'relative'})
+                $('body').append(template);
+            }
+
+            $('.V2-comment-vote-confirm .btn-vote-token').bind('click', function () {
+                callback(voter, el);
+                $('.V2-comment-vote-confirm, .V2-comment-vote-confirm-bg-overlay').remove();
+            });
+
+            $('.V2-comment-vote-confirm .btn-vote-token-close').bind('click', function () {
+                $('.V2-comment-vote-confirm, .V2-comment-vote-confirm-bg-overlay').remove();
+            });
+        }
+    };
+
+    window.preCommentVotersTooltip = function () {
+        $(this).tipsy({
+            title: 'voters',
+            gravity: 's',
+            html: true,
+            opacity: 1
+        });
+    };
+
+    window.initEditMessageForm = function () {
+        $(this).click(function () {
+            var item = $(this);
+
+            if (item.attr('disabled') === 'disabled') {
+                return;
+            }
+
+            item.attr('disabled', 'disabled');
+
+            var comment_item = item.closest('.V2-comment-item'),
+                comment_body = comment_item.find('.V2-comment-body'),
+                message_box = comment_item.find('.comment-message'),
+                message = '';
+            if (message_box.length > 0) {
+                message = message_box.text();
+            } else {
+                message_box = $("<div />").addClass('comment-message').appendTo(comment_body);
+            }
+            message_box.hide();
+            var message_box_edit = $("<div />").addClass('comment-message-edit');
+
+
+            var _textbox = $("<div />").addClass('message_text').text(message).osc_nodeTextEditor().on('focusin', function () {
+                    $(this).keyup(function (e) {
+                        console.log(e.keyCode);
+                        if (e.keyCode == 13) {
+                            initEditMessageSumit($(this));
+                        }
+                    });
+                }),
+                _textBlock = $("<div />").addClass('text_mes').html(_textbox).appendTo(message_box_edit),
+                _clear = $("<div />").addClass('clear').appendTo(message_box_edit);
+            message_box_edit.appendTo(comment_body);
+
+            _textbox.focus();
+            _textbox.on('focusout', function () {
+                var this_mes = $(this).text();
+                if (!this_mes) {
+                    message_box_edit.remove();
+                    item.removeAttr('disabled');
+                } else if (this_mes == message) {
+                    comment_body.find('.comment-message-edit').remove();
+                    message_box.show();
+                    item.removeAttr('disabled');
+                } else {
+                    initEditMessageSumit($(this));
+                }
+            });
+        });
+    };
+    window.initEditMessageSumit = function (item) {
+        var comment_item = item.closest('.V2-comment-item'),
+            comment_body = comment_item.find('.V2-comment-body'),
+            message_box = comment_item.find('.comment-message'),
+            comment_id = comment_item.attr('comment-id'),
+            emoji = comment_item.find(".emoji_item"),
+            submit_mes = comment_body.find('.message_text').text(),
+            error = false;
+
+        if (!submit_mes) {
+            error = true;
+            var error_mes = 'Vui lòng nhập message!';
+        }
+
+        if (!error) {
+            $.ajax({
+                url: linkhay_url + '/comment/item/addMessage',
+                type: 'post',
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                data: {id: comment_id, emoji_type: emoji.data('type'), emoji_id: emoji.data('id'), message: submit_mes},
+                success: function (response) {
+                    if (response.result == 'OK') {
+                        message_box.html(submit_mes).show();
+                        comment_body.find('.comment-message-edit').remove();
+                        comment_item.find('.action-edit-comment-message').removeAttr('disabled');
+                        return;
+                    } else if (response.result == 'ERROR') {
+                        alert(response.message);
+                        return;
+                    } else {
+                        alert(response.message);
+                        return;
+                    }
+                }
+            });
+
+        } else {
+            alert(error_mes);
+        }
+    }
+    window.initEditCommentBtn = function () {
+        $(this).click(function () {
+            var item = $(this);
+
+            if (item.attr('disabled') === 'disabled') {
+                return;
+            }
+
+            item.attr('disabled', 'disabled');
+
+            var comment_item = item.closest('.V2-comment-item');
+
+            if (typeof(linkhayEditors['editor-main']) !== 'undefined') {
+                var html = comment_item.find('.V2-comment-rc:first').html(),
+                    linkId = comment_item.data('link-id');
+                $.ajax({
+                    url: linkhay_url + '/comment/item/editRawData/id/' + comment_item.attr('comment-id'),
+                    type: 'get',
+                    crossDomain: true,
+                    xhrFields: {withCredentials: true},
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-OSC-Cross-Request': 'OK'
+                    },
+                    success: function (response) {
+                        if (response.result !== 'OK') {
+                            return;
+                        }
+
+                        item.removeAttr('disabled');
+
+                        const container = $(comment_item);
+                        const postfix = (new Date()).getTime();
+                        const linkId = container.data('link-id');
+                        const commentId = container.data('comment-id');
+                        const mobile = container.data('mobile');
+
+                        const contentContainer = container.find('.V2-comment-rc:first');
+
+                        contentContainer.find('.V2-comment-header').addClass('hidden');
+                        contentContainer.find('.V2-comment-body').addClass('hidden');
+                        contentContainer.find('.attachments-container').addClass('hidden');
+                        contentContainer.find('.V2-comment-footer').addClass('hidden');
+
+                        /**
+                         * Append Edit Form
+                         */
+                        //contentContainer.append();
+
+                        if (linkhayEditors['editor-main']) {
+                            linkhayEditors['editor-main']
+                                .setEditMode(true, function() {
+                                    contentContainer.find('.V2-comment-header').removeClass('hidden');
+                                    contentContainer.find('.V2-comment-body').removeClass('hidden');
+                                    contentContainer.find('.attachments-container').removeClass('hidden');
+                                    contentContainer.find('.V2-comment-footer').removeClass('hidden');
+                                })
+                                .setMobile(mobile)
+                                .setLinkId(linkId)
+                                .setReplyComment(0)
+                                .setCommentId(commentId)
+                                .setAttachments(response.data.attachments)
+                                .setCommentContents(response.data.ops, response.data.html)
+                                .resetEmbed()
+                                .attach(true);
+                        }
+                    }
+                });
+            } else {
+                $.ajax({
+                    url: linkhay_url + '/comment/item/edit/id/' + comment_item.attr('comment-id'),
+                    type: 'get',
+                    crossDomain: true,
+                    xhrFields: {withCredentials: true},
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-OSC-Cross-Request': 'OK'
+                    },
+                    success: function (response) {
+                        item.removeAttr('disabled');
+
+                        if (response.result !== 'OK') {
+                            alert(response.message);
+                            return;
+                        }
+
+                        var comment_frm = comment_frm_tpl.clone();
+
+                        comment_frm.attr('act', 'edit').find('.editor > .tile > .name').html('Sửa bình luận');
+
+                        comment_item.after(comment_frm);
+                        comment_item.hide();
+
+                        comment_frm.attr('comment-id', comment_item.attr('comment-id'));
+
+                        preCommentFrm.apply(comment_frm[0], [
+                            function () {
+                                comment_item.show();
+                            },
+                            function (response_data) {
+                                comment_item.after(response_data.html);
+                                comment_item.remove();
+                                comment_frm.remove();
+                            }
+                        ]);
+
+                        comment_frm.find('textarea').val(response.data.content)[0].focus();
+
+                        for (var x = 0; x < response.data.attachments.length; x++) {
+                            _commentEditor_RenderAttachment(comment_frm, response.data.attachments[x]);
+                        }
+                    }
+                });
+            }
+        });
+    };
+
+    window.initCommentEditLogToggleBtn = function () {
+        var item = $(this);
+
+        item.click(function () {
+            $.wrapContent($('<div />').addClass('V2-popup-loading'), {key: 'comment_edit_log'});
+
+            $.ajax({
+                url: linkhay_url + '/comment/item/getEditLog/id/' + item.closest('.V2-comment-item').attr('comment-id'),
+                type: 'get',
+                success: function (response) {
+                    if (response.result !== 'OK') {
+                        alert(response.message);
+                        $.unwrapContent('comment_edit_log');
+                        return;
+                    }
+
+                    var win = null;
+
+                    $.wrapContent($('<div />'), {key: 'comment_edit_log', close_callback: function () {
+                            win.destroy(null, true);
+                        }});
+
+                    win = $.create_window({
+                        destroy_hook: function () {
+                            $.unwrapContent('comment_edit_log');
+                        },
+                        title: 'Lịch sử sửa comment',
+                        content: response.data.html
+                    });
+                }
+            });
+        });
+    };
+
+    window.initBestCommentSwitch = function () {
+        $(this).click(function () {
+            var item = $(this);
+
+            if (item.attr('disabled') === 'disabled') {
+                return;
+            }
+
+            item.attr('disabled', 'disabled');
+
+            $.ajax({
+                url: linkhay_url + '/comment/item/bestCommentSwitch',
+                type: 'post',
+                data: {id: item.attr('comment-id')},
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                success: function (response) {
+                    item.removeAttr('disabled');
+
+                    if (response.result !== 'OK') {
+                        alert(response.message);
+                        return;
+                    }
+
+                    if (response.data.flag === 1) {
+                        alert('Comment đã được set thành bình luận hay');
+                    } else {
+                        alert('Comment đã được bỏ khỏi danh sách bình luận hay');
+                    }
+
+                    window.location.reload(true);
+                }
+            });
+        });
+    };
+
+    window.initAttachmentRemoveBtn = function () {
+        $(this).click(function () {
+            var item = $(this);
+
+            if (item.attr('disabled') === 'disabled') {
+                return;
+            }
+
+            item.attr('disabled', 'disabled');
+
+            if (!window.confirm('Bạn có muốn xóa attachment này không?')) {
+                item.removeAttr('disabled');
+                return;
+            }
+
+            $.ajax({
+                url: linkhay_url + '/comment/attachment/remove/id/' + item.attr('attachment-id'),
+                type: 'get',
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                success: function (response) {
+                    item.removeAttr('disabled');
+
+                    if (response.result !== 'OK') {
+                        alert(response.message);
+                        return;
+                    }
+
+                    var attachment_item = item.closest('.attachment-item');
+                    var attachment_type_list = attachment_item.parent();
+                    var attachment_ist = attachment_type_list.parent();
+
+                    attachment_item.remove();
+
+                    if (attachment_type_list.children().length < 1) {
+                        attachment_type_list.remove();
+                    }
+
+                    if (attachment_ist.children().length < 1) {
+                        attachment_ist.remove();
+                    }
+                }
+            });
+        });
+    };
+
+    window.initViewFullAttachmentImage = function()
+    {
+        var item = $(this);
+        item.on('click', function(e){
+            e.preventDefault();
+            var _img = item.find('img').attr('src'),
+                _w = 0,
+                _h = 0;
+            var image = new Image();
+            image.src = _img;
+            image.onload = function() {
+                _w = this.width;
+                _h = this.height;
+                var pswpElement = document.querySelectorAll('.pswp')[0];
+
+                var items = [
+                    {
+                        src: _img,
+                        w: _w,
+                        h: _h
+                    },
+                ];
+
+                var options = {
+                    index: 0, // start at first slide
+                    "bgOpacity": 0.85,
+                    history: false
+                };
+
+                var gallery = new PhotoSwipe( pswpElement, PhotoSwipeUI_Default, items, options);
+                gallery.init();
+            };
+
+
+        });
+
+
+
+
+        // item.click(function () {
+        //
+        //     var scene = $('<div />').addClass('V2-popup-detail-scene');
+        //     scene.append('<div class="close-btn" data-insert-cb="preUnwrapBtn"><i></i></div>');
+        //     var div = $('<div />').css({"padding": "40px"});
+        //
+        //     var _html = '<div class="attachmentViewFullSize"><img src="'+_img+'"/></div>';
+        //     scene.append(div.html(_html));
+        //
+        //     $.wrapContent(scene, {key: 'viewAttachment'});
+        // });
+    };
+
+    window.initCommentSpamVoteBtn = function () {
+        var wrapper = $(this);
+
+        wrapper.find('.vote-btn').each(function () {
+            $(this).click(function () {
+                if (wrapper.attr('disabled') === 'disabled') {
+                    return;
+                }
+
+                wrapper.attr('disabled', 'disabled');
+
+                $.ajax({
+                    url: linkhay_url + '/comment/item/spamVote/id/' + wrapper.attr('comment-id') + '/value/' + $(this).attr('data-value'),
+                    type: 'get',
+                    crossDomain: true,
+                    xhrFields: {withCredentials: true},
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-OSC-Cross-Request': 'OK'
+                    },
+                    success: function (response) {
+                        wrapper.removeAttr('disabled');
+
+                        if (response.result !== 'OK') {
+                            alert(response.message);
+                            return;
+                        }
+
+                        wrapper.remove();
+                    }
+                });
+            });
+        });
+    };
+
+    var popupCommentGift = false;
+    window.initCommentGift = function () {
+        var item = $(this);
+        item.click(function () {
+            if (popupCommentGift == true) {
+                return false;
+            }
+            if (item.hasClass('mrk-locked')) {
+                return;
+            }
+            item.addClass('mrk-locked');
+            $.ajax({
+                url: linkhay_url + '/token/giveComment/popUp',
+                type: "POST",
+                data: {
+                    comment_id: item.data('comment_id'),
+                },
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                beforeSend: function() {
+                    popupCommentGift = true;
+                },
+                success: function (response) {
+                    popupCommentGift = false;
+                    item.removeClass('mrk-locked');
+
+                    if (response.result !== 'OK') {
+                        console.log('Error: ' + response.message);
+                        return;
+                    }
+
+                    var scene = $('<div />').addClass('V2-popup-detail-scene');
+                    scene.append('<div class="close-btn" data-insert-cb="preUnwrapBtn"><i></i></div>');
+                    var div = $('<div />').css({"opacity": "0.1"});
+
+                    setTimeout(function () {
+                        div.css({"opacity": ""});
+                    }, 200);
+
+                    scene.append(div.html(response.data.content));
+
+                    $.wrapContent(scene, {key: 'token_to_hot'});
+
+                    $('#token-amount', scene).keyup(function() {
+                        var value = parseInt($(this).val());
+                        value = isNaN(value) ? '' : value;
+                        $(this).val(value);
+                    });
+                },
+                error: function () {
+                    console.log("Error: có lỗi vui lòng thử lại");
+                }
+            });
+        });
+    };
+
+    window.initCommentGiftSubmit = function () {
+        var item = $(this);
+
+        item.click(function () {
+            if (item.hasClass('mrk-locked')) {
+                return;
+            }
+            item.addClass('mrk-locked');
+            var comment_id = item.data("comment-id");
+            var gift_type = item.data('gift-type');
+            var message,token;
+            if(gift_type == 1) {
+                token = $("#token-amount").val();
+                message = $("#gift-message").val();
+            } else {
+                token = item.data("gift-token");
+                message = item.data("gift-message");
+            }
+            if(!token){
+                $(".error-message").removeClass("dis-none");
+                $(".info-message").addClass("dis-none");
+                item.removeClass('mrk-locked');
+            } else {
+                $(".error-message").addClass("dis-none");
+                var data = {
+                    gift_type : gift_type,
+                    comment_id : comment_id,
+                    token : token,
+                    message : message
+                };
+                $.ajax({
+                    url: linkhay_url + '/token/giveComment/giveToken',
+                    type: "POST",
+                    data: data,
+                    crossDomain: true,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-OSC-Cross-Request': 'OK'
+                    },
+                    xhrFields: {withCredentials: true},
+                    success: function (response) {
+                        item.removeClass('mrk-locked');
+                        if (response.result !== 'OK') {
+                            console.log('Error: ' + response.message);
+                            return;
+                        } else {
+                            $(item).closest('.osc-wrap-container').trigger('close');
+                            alert(response.data.mes);
+                            window.location.reload(true);
+                        }
+
+                    },
+                    error: function () {
+                        console.log("Error: có lỗi vui lòng thử lại");
+                        item.removeClass('mrk-locked');
+                    }
+                });
+            }
+
+        });
+    };
+
+    window.initCommentIconVote = function () {
+        var item = $(this);
+        item.click(function () {
+            if (item.hasClass('mrk-locked')) {
+                return;
+            }
+            item.addClass('mrk-locked');
+            $.ajax({
+                url: linkhay_url + '/goldVote/icon/renderVoteIcon',
+                type: "POST",
+                data: {
+                    content_id: item.data('comment_id'),
+                    content_type: 'comment'
+                },
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                success: function (response) {
+                    item.removeClass('mrk-locked');
+
+                    if (response.result !== 'OK') {
+                        alert(response.message);
+                        return;
+                    }
+
+                    var scene = $('<div />').addClass('V2-popup-detail-scene');
+                    scene.append('<div class="close-btn" data-insert-cb="preUnwrapBtn"><i></i></div>');
+                    var div = $('<div />').css({"opacity": "0.1"});
+
+                    setTimeout(function () {
+                        div.css({"opacity": ""});
+                    }, 200);
+
+                    scene.append(div.html(response.data.content));
+
+                    $.wrapContent(scene, {key: 'token_to_hot'});
+                },
+                error: function () {
+                    alert("có lỗi vui lòng thử lại");
+                }
+            });
+        });
+    };
+    window.initGiftGold = function () {
+        var item = $(this);
+
+        item.click(function () {
+            var star_value = 0;
+            $(".star-checked").each(function () {
+                if (this.checked) {
+                    star_value = this.value;
+                    return false;
+                }
+            });
+
+            if (!star_value) {
+                alert('Xin hãy chọn sao để tặng');
+                return;
+            }
+
+            var icon_id = 0;
+
+            $(".icon-checked").each(function () {
+                if (this.checked) {
+                    icon_id = this.value;
+                    return false;
+                }
+            });
+
+            if (!icon_id) {
+                alert('Xin hãy chọn một danh hiệu để tặng gold');
+                return;
+            }
+
+            $("#total-token-vote-user").html(parseInt(star_value * 200));
+
+
+            var data = {
+                star_value: star_value,
+                icon_id: icon_id,
+                content_id: item.attr('content-id'),
+                content_type: item.attr('content-type')
+            };
+
+            RenderFormConfirmStartGift(data,$('.member-name').html());
+
+        });
+    };
+
+    var _loading_icon = '<div class="icon" style="display: inline-block; margin-top:16px;"><svg xml:space="preserve" style="enable-background:new 0 0 50 50;" viewBox="0 0 24 30" height="20px" width="21px" y="0px" x="0px" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" id="Layer_1" version="1.1"><rect opacity="0.2" fill="#000" height="8" width="3" y="10" x="0"><animate repeatCount="indefinite" dur="0.6s" begin="0s" values="0.2; 1; .2" attributeType="XML" attributeName="opacity"/><animate repeatCount="indefinite" dur="0.6s" begin="0s" values="10; 20; 10" attributeType="XML" attributeName="height"/><animate repeatCount="indefinite" dur="0.6s" begin="0s" values="10; 5; 10" attributeType="XML" attributeName="y"/></rect><rect opacity="0.2" fill="#000" height="8" width="3" y="10" x="8">      <animate repeatCount="indefinite" dur="0.6s" begin="0.15s" values="0.2; 1; .2" attributeType="XML" attributeName="opacity"/><animate repeatCount="indefinite" dur="0.6s" begin="0.15s" values="10; 20; 10" attributeType="XML" attributeName="height"/><animate repeatCount="indefinite" dur="0.6s" begin="0.15s" values="10; 5; 10" attributeType="XML" attributeName="y"/></rect><rect opacity="0.2" fill="#000" height="8" width="3" y="10" x="16"><animate repeatCount="indefinite" dur="0.6s" begin="0.3s" values="0.2; 1; .2" attributeType="XML" attributeName="opacity"/><animate repeatCount="indefinite" dur="0.6s" begin="0.3s" values="10; 20; 10" attributeType="XML" attributeName="height"/><animate repeatCount="indefinite" dur="0.6s" begin="0.3s" values="10; 5; 10" attributeType="XML" attributeName="y"/></rect></svg></div>';
+    var goldVoteProcess = false;
+    function RenderFormConfirmStartGift(data,user_name) {
+        var scene = $('<div />').addClass('V2-popup-detail-scene').css({"margin-top":"25px","margin-bottom":"25px","border-radius":"5px"});
+        var div = $('<div />').css({"padding": "26px", "opacity": "0.1"});
+
+        setTimeout(function () {
+            div.css({"opacity": ""});
+        }, 200);
+
+
+        var container = $('<div />').addClass('container-confirm-gift-star');
+
+        if (data.content_type == 'comment'){
+            var gift_for_content =  'Bạn đã tặng cho bình luận của '+'<span class="gift-star-for-user">@'+user_name+' '+data.star_value+' sao</span>'
+        }
+
+        var gift_for =  $('<div />').addClass('gift-star-for').html(gift_for_content);
+
+        container.append(gift_for);
+
+        var content = $('<div />').addClass('gift-star-content').html('bạn đốt bỏ '+parseInt(data.star_value * 220)+' token, ' + '@'+user_name+' sẽ nhận được '+parseInt(data.star_value * 200)+ ' Token');
+        container.append(content);
+
+        container.append($('<div />').addClass('gift-star-question').html("Bạn có muốn nhắn thêm gì không?"));
+
+        var message = $('<textarea/>').addClass('gift-star-message-input').attr({'placeholder':'Điền nội dung lời nhắn (Không bắt buộc)','type':'text','name':'gift-star-message'});
+        container.append(message);
+
+
+
+        var gift_star_btn = $('<div/>').addClass('gift-star-btn-patent');
+
+        var btn_cancel = $('<div/>').addClass('gift-star-btn gift-star-cancel-btn').html("Quay lại");
+        gift_star_btn.append(btn_cancel);
+
+        var btn_done = $('<div/>').addClass('gift-star-btn gift-star-done-btn').html("Done");
+        gift_star_btn.append(btn_done);
+
+        container.append(gift_star_btn);
+
+        scene.append(container);
+
+        btn_cancel.click(function () {
+            $.unwrapContent('confirm_star_gift');
+        });
+
+        btn_done.click(function () {
+            if (goldVoteProcess == true) {
+                alert('Hệ thống đang xử lý dữ liệu. Xin bạn vui lòng chờ trong giây lát');
+                return false;
+            }
+
+            var _message =  message.val();
+
+            if (_message.length > 255){
+                alert("Lời nhắn không được lớn hơn 255 kí tự");
+                return;
+            }
+
+            data.message = _message;
+
+            if (btn_done.hasClass('mrk-locked')) {
+                return;
+            }
+
+            btn_done.addClass('mrk-locked');
+
+            data.challenge_type = 'commentGoldVote';
+            let captchaInput = $('.captcha-input', $('#linkhay-popup-container .captcha-container'));
+            if (captchaInput.length) {
+                data.restrict_verify_code = captchaInput.val();
+            }
+            $.ajax({
+                url: linkhay_url + '/goldVote/icon/giftGoldIcon',
+                type: "POST",
+                data: data,
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                beforeSend: function () {
+                    gift_star_btn.append(_loading_icon);
+                    goldVoteProcess = true;
+                },
+                success: function (response) {
+                    btn_done.removeClass('mrk-locked');
+
+                    if (response.status == 4) {
+                        gift_star_btn.find(".icon").remove();
+                        goldVoteProcess = false;
+                        var restrictAccess = $('body').linkhayRestrictAccess({
+                            restrictType: response.restrict_type,
+                            challengeType: 'commentGoldVote'
+                        });
+                        restrictAccess.show(response, function() {
+                            btn_done.click();
+                        });
+                    } else {
+                        if (response.result !== 'OK') {
+                            alert(response.message);
+                            return;
+                        }
+
+                        if (data.content_type === 'comment' && response.data.votes > 0) {
+                            var vote_box = $('.V2-comment-item[comment-id="' + data.content_id + '"] .V2-comment-vote');
+
+                            vote_box.find('.fa').attr('disabled', 'disabled');
+                            vote_box.find('.counter').html('+' + response.data.votes);
+                        }
+
+                        gift_star_btn.find(".icon").remove();
+                        goldVoteProcess = false;
+
+                        alert('bạn đã vote thành công');
+
+                        $.unwrapContent('confirm_star_gift');
+
+                        window.location.reload();
+                    }
+                }
+            });
+        });
+
+        $.wrapContent(scene, {key: 'confirm_star_gift'});
+    }
+
+    window.preCommentGoldVoters = function () {
+        var item = $(this);
+
+        item.click(function () {
+            item.addClass('mrk-locked');
+            $.ajax({
+                url: linkhay_url + '/goldVote/icon/getVoter',
+                type: "POST",
+                data: {content_id: item.attr('comment-id'), content_type: 'comment'},
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                success: function (response) {
+                    item.removeClass('mrk-locked');
+
+                    if (response.result !== 'OK') {
+                        alert(response.message);
+                        return;
+                    }
+
+                    var scene = $('<div />').addClass('V2-popup-detail-scene').css({"width":"350px","margin-top":"25px","margin-bottom":"25px","border-radius":"5px"});
+                    scene.append('<div class="close-btn" data-insert-cb="preUnwrapBtn"><i></i></div>');
+                    var div = $('<div />').css({"padding": "26px 15px 12px 15px", "opacity": "0.1", "margin-top": "5px"});
+
+                    setTimeout(function () {
+                        div.css({"opacity": ""});
+                    }, 200);
+
+                    scene.append(div.html(response.data.content));
+
+                    $.wrapContent(scene, {key: 'list_gold_voter'});
+                },
+                error: function () {
+                    alert("có lỗi vui lòng thử lại");
+                }
+            });
+        });
+    };
+
+    var _timeout;
+    window.preCommentGoldVotersTooltip = function () {
+        $(this).css('position', 'relative');
+        $(this).hover(function () {
+            $(".V2-list-voter-gold-popup").remove();
+            var item = $(this);
+            if (item.attr('disabled') === 'disabled') {
+                return;
+            }
+            item.attr('disabled', 'disabled');
+            _timeout = setTimeout(function () {
+                $.ajax({
+                    url: linkhay_url + '/goldVote/icon/getVoter',
+                    type: 'post',
+                    crossDomain: true,
+                    xhrFields: {withCredentials: true},
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-OSC-Cross-Request': 'OK'
+                    },
+                    data: {content_id: item.attr('comment-id'), content_type: 'comment', flag_hover: true},
+
+                    success: function (response) {
+                        if (response.result == 'OK') {
+                            item.append(response.data.content);
+                        } else {
+
+                        }
+                    }
+                });
+            }, 300);
+
+        }, function () {
+            clearTimeout(_timeout);
+            var item = $(this);
+            item.find(".V2-list-voter-gold-popup").remove();
+            item.removeAttr('disabled');
+        });
+
+    };
+
+    window.totalTokenVoteStar = function () {
+        var token = 200;
+        $(this).click(function(){
+            $("#count-star").html(parseInt($(this).attr("value")));
+            $("#star-token-value").html(token*parseInt($(this).attr("value")));
+            $("#star-percent").html(token*parseInt($(this).attr("value"))*0.1);
+            $("#start-so-value").html(token*parseInt($(this).attr("value")) + token*parseInt($(this).attr("value"))*0.1);
+            $("#total-token-vote-user").html(token*parseInt($(this).attr("value")));
+        });
+    };
+
+    window.preClickIconVote = function () {
+        // var first = $(".action-container-icon").first();
+        // first.find(".action-container-icon-name").css("background-color", "#1abc9c");
+        // first.css("border", "1px solid #1abc9c");
+        // first.find(".icon-name").css("color","white");
+        // first.find(".icon-checked").prop("checked", true);
+        $(this).click(function () {
+            $(".action-container-icon-name").removeAttr("style");
+            $(".action-container-icon").removeAttr("style");
+            $(".icon-name").removeAttr("style");
+            $(".icon-checked").prop("checked", false);
+            var item = $(this);
+            item.find(".action-container-icon-name").css("background-color", "#1abc9c");
+            item.css("border", "1px solid #1abc9c");
+            item.find(".icon-name").css("color","white");
+            item.find(".icon-checked").prop("checked", true);
+        });
+    };
+
+    window.highlightSpamComment = function() {
+        var list = $(this);
+
+        var spam_comments = JSON.parse(list.attr('data-spam-ids'));
+
+        spam_comments.forEach(function(comment_id){
+            var div = list.find('.V2-comment-item[comment-id="' + comment_id + '"] > .V2-comment-rc > .V2-comment-body')[0];
+
+            if(div) {
+                div.style.backgroundColor = '#ffeaea';
+                div.style.padding = '10px';
+            }
+        });
+    };
+})(jQuery);

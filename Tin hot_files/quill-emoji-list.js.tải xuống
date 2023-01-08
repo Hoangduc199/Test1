@@ -1,0 +1,307 @@
+const emojiListCode = [">:D<", ":p:*", "o:-)", ":-ss", "3:-o", ":(|)", "@};-", "^:)^", "x-(", ";;)", ":-/", ':">', "=((", "b-)", ">:)", ":((", ":))", "=))", "i-)", "l-)", "(:|", "@-)", ":@)", "~:>", "$-)", "[-x", "8-x", "(y)", ":-q", ":o3", ":o", ":)", ":(", ";)", ":d", ":x", ":p", ":|"];
+const emojiList = [
+		{
+      "name": "slightly_smiling_face",
+      "unicode": "1f642",
+      "shortname": ":)",
+      "code_decimal": "&#128578;",
+      "category": "p",
+      "emoji_order": "19"
+		},
+		{
+      "name": "slightly_frowning_face",
+      "unicode": "1f641",
+      "shortname": ":(",
+      "code_decimal": "&#128577;",
+      "category": "p",
+      "emoji_order": "49"
+		},
+		{
+      "name": "wink",
+      "unicode": "1f609",
+      "shortname": ";)",
+      "code_decimal": "&#128521;",
+      "category": "p",
+      "emoji_order": "9"
+		},
+		{
+      "name": "grinning",
+      "unicode": "1f600",
+      "shortname": ":d",
+      "code_decimal": "&#128512;",
+      "category": "p",
+      "emoji_order": "1"
+		},
+		{
+      "name": "smirk",
+      "unicode": "1f60f",
+      "shortname": ";;)",
+      "code_decimal": "&#128527;",
+      "category": "p",
+      "emoji_order": "26"
+		},
+		{
+      "name": "hugging_face",
+      "unicode": "1f917",
+      "shortname": ">:D<",
+      "code_decimal": "&#129303;",
+      "category": "p",
+      "emoji_order": "20"
+		},
+		{
+      "name": "thinking_face",
+      "unicode": "1f914",
+      "shortname": ":-/",
+      "code_decimal": "&#129300;",
+      "category": "p",
+      "emoji_order": "21"
+		},
+		{
+      "name": "heart_eyes",
+      "unicode": "1f60d",
+      "shortname": ":x",
+      "code_decimal": "&#128525;",
+      "category": "p",
+      "emoji_order": "13"
+		},
+		{
+      "name": "blush",
+      "unicode": "1f60a",
+      "shortname": ':">',
+      "code_decimal": "&#128522;",
+      "category": "p",
+      "emoji_order": "10"
+		},
+		{
+      "name": "stuck_out_tongue_winking_eye",
+      "unicode": "1f61c",
+      "shortname": ":p",
+      "code_decimal": "&#128540;",
+      "category": "p",
+      "emoji_order": "38"
+		},
+		{
+      "name": "kissing_heart",
+      "unicode": "1f618",
+      "shortname": ":p:*",
+      "code_decimal": "&#128536;",
+      "category": "p",
+      "emoji_order": "14"
+		},
+		{
+      "name": "broken_heart",
+      "unicode": "1f494",
+      "shortname": "=((",
+      "code_decimal": "&#128148;",
+      "category": "s",
+      "emoji_order": "1288"
+		},
+		{
+      "name": "hushed",
+      "unicode": "1f62f",
+      "shortname": ":o",
+      "code_decimal": "&#128559;",
+      "category": "p",
+      "emoji_order": "31"
+		},
+		{
+      "name": "rage",
+      "unicode": "1f621",
+      "shortname": "x-(",
+      "code_decimal": "&#128545;",
+      "category": "p",
+      "emoji_order": "65"
+		},
+		{
+      "name": "sunglasses",
+      "unicode": "1f60e",
+      "shortname": "b-)",
+      "code_decimal": "&#128526;",
+      "category": "p",
+      "emoji_order": "12"
+		},
+		{
+      "name": "smiling_imp",
+      "unicode": "1f608",
+      "shortname": ">:)",
+      "code_decimal": "&#128520;",
+      "category": "p",
+      "emoji_order": "76"
+		},
+		{
+      "name": "cry",
+      "unicode": "1f622",
+      "shortname": ":((",
+      "code_decimal": "&#128546;",
+      "category": "p",
+      "emoji_order": "54"
+		},
+		{
+      "name": "smile",
+      "unicode": "1f604",
+      "shortname": ":))",
+      "code_decimal": "&#128516;",
+      "category": "p",
+      "emoji_order": "6"
+		},
+		{
+      "name": "neutral_face",
+      "unicode": "1f610",
+      "shortname": ":|",
+      "code_decimal": "&#128528;",
+      "category": "p",
+      "emoji_order": "22"
+		},
+		{
+      "name": "joy",
+      "unicode": "1f602",
+      "shortname": "=))",
+      "code_decimal": "&#128514;",
+      "category": "p",
+      "emoji_order": "3"
+		},
+		{
+      "name": "innocent",
+      "unicode": "1f607",
+      "shortname": "o:-)",
+      "code_decimal": "&#128519;",
+      "category": "p",
+      "emoji_order": "67"
+		},
+		{
+      "name": "sleeping",
+      "unicode": "1f634",
+      "shortname": "i-)",
+      "code_decimal": "&#128564;",
+      "category": "p",
+      "emoji_order": "34"
+		},
+		{
+      "name": "the_horns",
+      "unicode": "1f918",
+      "shortname": "l-)",
+      "code_decimal": "&#129304;",
+      "category": "p",
+      "emoji_order": "1146"
+		},
+		{
+      "name": "weary",
+      "unicode": "1f629",
+      "shortname": "(:|",
+      "code_decimal": "&#128553;",
+      "category": "p",
+      "emoji_order": "59"
+		},
+		{
+      "name": "astonished",
+      "unicode": "1f632",
+      "shortname": "@-)",
+      "code_decimal": "&#128562;",
+      "category": "p",
+      "emoji_order": "47"
+		},
+		{
+      "name": "raising_hand",
+      "unicode": "1f64b",
+      "shortname": ":-ss",
+      "code_decimal": "&#128587;",
+      "category": "p",
+      "emoji_order": "585"
+		},
+		{
+      "name": "pig",
+      "unicode": "1f437",
+      "shortname": ":@)",
+      "code_decimal": "&#128055;",
+      "category": "n",
+      "emoji_order": "1364"
+		},
+		{
+      "name": "cow",
+      "unicode": "1f42e",
+      "shortname": "3:-o",
+      "code_decimal": "&#128046;",
+      "category": "n",
+      "emoji_order": "1360"
+		},
+		{
+      "name": "monkey_face",
+      "unicode": "1f435",
+      "shortname": ":(|)",
+      "code_decimal": "&#128053;",
+      "category": "n",
+      "emoji_order": "1342"
+		},
+		{
+      "name": "chicken",
+      "unicode": "1f414",
+      "shortname": "~:>",
+      "code_decimal": "&#128020;",
+      "category": "n",
+      "emoji_order": "1388"
+		},
+		{
+      "name": "rose",
+      "unicode": "1f339",
+      "shortname": '@};-',
+      "code_decimal": "&#127801;",
+      "category": "n",
+      "emoji_order": "1431"
+		},
+		{
+      "name": "money_mouth_face",
+      "unicode": "1f911",
+      "shortname": "$-)",
+      "code_decimal": "&#129297;",
+      "category": "p",
+      "emoji_order": "46"
+		},
+		{
+      "name": "no_good",
+      "unicode": "1f645",
+      "shortname": "[-x",
+      "code_decimal": "&#128581;",
+      "category": "p",
+      "emoji_order": "531"
+		},
+		{
+      "name": "skull",
+      "unicode": "1f480",
+      "shortname": "8-x",
+      "code_decimal": "&#128128;",
+      "category": "p",
+      "emoji_order": "80"
+		},
+		{
+      "name": "thumbsup",
+      "unicode": "1f44d",
+      "shortname": "(y)",
+      "code_decimal": "&#128077;",
+      "category": "p",
+      "emoji_order": "1176"
+    },
+		{
+      "name": "thumbsdown",
+      "unicode": "1f44e",
+      "shortname": ":-q",
+      "code_decimal": "&#128078;",
+      "category": "p",
+      "emoji_order": "1182"
+		},
+		{
+      "name": "dog",
+      "unicode": "1f436",
+      "shortname": ":o3",
+      "code_decimal": "&#128054;",
+      "category": "n",
+      "emoji_order": "1345"
+		},
+		{
+      "name": "pray",
+      "unicode": "1f64f",
+      "shortname": "^:)^",
+      "code_decimal": "&#128591;",
+      "category": "p",
+      "emoji_order": "1248"
+    },
+	];

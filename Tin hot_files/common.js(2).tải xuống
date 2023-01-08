@@ -1,0 +1,365 @@
+(function ($) {
+    'use strict';
+
+    window.initStrongMemberSwitchBtn = function () {
+        $(this).click(function () {
+            var item = $(this);
+
+            if (item.attr('disabled') === 'disabled') {
+                return;
+            }
+
+            item.attr('disabled', 'disabled');
+
+            $.ajax({
+                url: linkhay_url + '/member/admin_common/strongMemberSwitch/id/' + item.attr('member-id'),
+                type: 'get',
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                success: function (response) {
+                    item.removeAttr('disabled');
+
+                    if (response.result !== 'OK') {
+                        alert(response.message);
+                        return;
+                    }
+
+                    $('.V2-strong-member-switch-btn[member-id=' + item.attr('member-id') + ']').attr('flag', response.data.flag);
+
+                    if (response.data.flag === 1) {
+                        $('.V2-weak-member-switch-btn[member-id=' + item.attr('member-id') + ']').attr('flag', 0);
+                    }
+                }
+            });
+        });
+    };
+
+    window.initWeakMemberSwitchBtn = function () {
+        $(this).click(function () {
+            var item = $(this);
+
+            if (item.attr('disabled') === 'disabled') {
+                return;
+            }
+
+            item.attr('disabled', 'disabled');
+
+            $.ajax({
+                url: linkhay_url + '/member/admin_common/weakMemberSwitch/id/' + item.attr('member-id'),
+                type: 'get',
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                success: function (response) {
+                    item.removeAttr('disabled');
+
+                    if (response.result !== 'OK') {
+                        alert(response.message);
+                        return;
+                    }
+
+                    $('.V2-weak-member-switch-btn[member-id=' + item.attr('member-id') + ']').attr('flag', response.data.flag);
+
+                    if (response.data.flag === 1) {
+                        $('.V2-strong-member-switch-btn[member-id=' + item.attr('member-id') + ']').attr('flag', 0);
+                    }
+                }
+            });
+        });
+    };
+
+    window.initMoveCommentToTrash = function() {
+        $(this).click(function () {
+            var item = $(this);
+
+            if (item.attr('disabled') === 'disabled') {
+                return;
+            }
+
+            item.attr('disabled', 'disabled');
+            var dataType = item.attr('data-type');
+            dataType = typeof dataType !== 'undefined' ? dataType : 'user';
+
+            $.ajax({
+                url: linkhay_url + '/comment/item/moveToTrash',
+                type: 'post',
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                data: {
+                    comment_id: $(item).attr('comment-id'),
+                    type: dataType
+                },
+                success: function (response) {
+                    item.removeAttr('disabled');
+
+                    if (response.result !== 'OK') {
+                        alert(response.message);
+                        return;
+                    }
+                    window.location.reload();
+                }
+            });
+        });
+    };
+
+    window.preMemberBlockSwitcher = function () {
+        $(this).click(function () {
+            var item = $(this);
+
+            if (item.attr('disabled') === 'disabled') {
+                return;
+            }
+
+            var userId = item.attr('member-id'),
+                vietId = item.attr('viet-id');
+            item.attr('disabled', 'disabled');
+
+            $.ajax({
+                url: linkhay_url + '/member/common/blockSwitch/id/' + item.attr('member-id'),
+                type: 'get',
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                success: function (response) {
+                    if (response.result !== 'OK') {
+                        item.removeAttr('disabled');
+                        alert(response.message);
+                        return;
+                    }
+
+                    $('.V2-member-block-switcher[member-id=' + item.attr('member-id') + ']').attr('flag', response.data.flag);
+
+                    item.removeAttr('disabled');
+                    item.attr('success', 1);
+                    let menuBlockSwitcher = $('.menu-block-switcher[member-id="' + userId + '"]');
+
+                    switch (response.data.flag) {
+                        case 0:
+                            /** event logging **/
+                            try {
+                                window.LINKHAY_LOGGING.event('user', 'unblock', {
+                                    user_id: userId,
+                                    viet_id: vietId
+                                });
+                            } catch (e) {}
+                            if (item.hasClass('menu-block-switcher') && menuBlockSwitcher.length) {
+                                menuBlockSwitcher.html('<i class="icon fa fa-lock"></i>Block User');
+                                menuBlockSwitcher.removeAttr('flag');
+                            }
+                            break;
+                        case 1:
+                            /** event logging **/
+                            try {
+                                window.LINKHAY_LOGGING.event('user', 'block', {
+                                    user_id: userId,
+                                    viet_id: vietId
+                                });
+                            } catch (e) {}
+                            if (item.hasClass('menu-block-switcher') && menuBlockSwitcher.length) {
+                                menuBlockSwitcher.html('<i class="icon fa fa-unlock"></i>Unblock User');
+                                menuBlockSwitcher.attr('flag', 1);
+                            }
+                            break;
+                    }
+                }
+            });
+        });
+    };
+
+    window.preMemberMuteSwitcher = function () {
+        $(this).click(function () {
+            var item = $(this);
+
+            if (item.attr('disabled') === 'disabled') {
+                return;
+            }
+
+            item.attr('disabled', 'disabled');
+
+            var userId = item.attr('member-id'),
+                vietId = item.attr('viet-id');
+            $.ajax({
+                url: linkhay_url + '/member/common/muteSwitch/id/' + item.attr('member-id'),
+                type: 'get',
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                success: function (response) {
+                    if (response.result !== 'OK') {
+                        item.removeAttr('disabled');
+                        alert(response.message);
+                        return;
+                    }
+
+                    $('.V2-member-mute-switcher[member-id=' + item.attr('member-id') + ']').attr('flag', response.data.flag);
+
+                    item.removeAttr('disabled');
+                    item.attr('success', 1);
+                    let menuMuteSwitcher = $('.menu-mute-switcher[member-id="' + userId + '"]');
+
+                    switch (response.data.flag) {
+                        case 0:
+                            /** event logging **/
+                            try {
+                                window.LINKHAY_LOGGING.event('user', 'unmute', {
+                                    user_id: userId,
+                                    viet_id: vietId
+                                });
+                            } catch (e) {}
+                            if (item.hasClass('menu-mute-switcher') && menuMuteSwitcher.length) {
+                                menuMuteSwitcher.html('<i class="icon fa fa-volume-down"></i>Mute User');
+                                menuMuteSwitcher.removeAttr('flag');
+                            }
+                            break;
+                        case 1:
+                            /** event logging **/
+                            try {
+                                window.LINKHAY_LOGGING.event('user', 'mute', {
+                                    user_id: userId,
+                                    viet_id: vietId
+                                });
+                            } catch (e) {}
+                            if (item.hasClass('menu-mute-switcher') && menuMuteSwitcher.length) {
+                                menuMuteSwitcher.html('<i class="icon fa fa-volume-up"></i>Bỏ Mute User');
+                                menuMuteSwitcher.attr('flag', 1);
+                            }
+                            break;
+                    }
+                }
+            });
+        });
+    };
+
+    window.powerUserGetList = function (callback, opts) {
+        var data = {
+            page_size: 25,
+            page: 1,
+            filter: ''
+        };
+
+        if (typeof opts !== 'object') {
+            opts = {};
+        }
+
+        if (typeof opts.page_size !== 'undefined') {
+            opts.page_size = parseInt(opts.page_size);
+
+            if (!isNaN(opts.page_size) && opts.page_size > 0) {
+                data.page_size = opts.page_size;
+            }
+        }
+
+        if (typeof opts.page !== 'undefined') {
+            opts.page = parseInt(opts.page);
+
+            if (!isNaN(opts.page) && opts.page > 0) {
+                data.page = opts.page;
+            }
+        }
+
+        if (typeof opts.filter !== 'undefined') {
+            data.filter = opts.filter;
+        }
+
+        $.ajax({
+            url: linkhay_url + '/user/powerUser/getPowerList',
+            type: 'post',
+            data: data,
+            crossDomain: true,
+            xhrFields: {withCredentials: true},
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-OSC-Cross-Request': 'OK'
+            },
+            success: function (response) {
+                if (response.result !== 'OK') {
+                    throw new Error(response.message);
+                    return;
+                }
+
+                callback(response.data.members, response.data.filter, response.data.page_size, response.data.page, response.data.total);
+            }
+        });
+    };
+
+    window.preMemberDontMissSwitcher = function () {
+        $(this).click(function () {
+            var item = $(this);
+
+            if (item.attr('disabled') === 'disabled') {
+                return;
+            }
+
+            var userId = item.attr('member-id'),
+                vietId = item.attr('viet-id');
+            item.attr('disabled', 'disabled');
+
+            $.ajax({
+                url: linkhay_url + '/member/dontMiss/switcher/id/' + item.attr('member-id'),
+                type: 'POST',
+                crossDomain: true,
+                xhrFields: {withCredentials: true},
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-OSC-Cross-Request': 'OK'
+                },
+                success: function (response) {
+                    if (response.result !== 'OK') {
+                        item.removeAttr('disabled');
+                        alert(response.message);
+                        return;
+                    }
+
+                    $('.V2-member-dont-miss-switcher[member-id=' + item.attr('member-id') + ']').attr('flag', response.data.flag);
+                    if (response.data.flag == 1) {
+                        item.attr('success', 1);
+                    } else {
+                        item.removeAttr('success', 1);
+                    }
+
+                    // switch (response.data.flag) {
+                    //     case 0:
+                    //         /** event logging **/
+                    //         try {
+                    //             window.LINKHAY_LOGGING.event('user', 'unDontMiss', {
+                    //                 user_id: userId,
+                    //                 viet_id: vietId
+                    //             });
+                    //         } catch (e) {
+                    //             console.log('[LOGGING ERROR]: ', e);
+                    //         }
+                    //         break;
+                    //     case 1:
+                    //         /** event logging **/
+                    //         try {
+                    //             window.LINKHAY_LOGGING.event('user', 'dontMiss', {
+                    //                 user_id: userId,
+                    //                 viet_id: vietId
+                    //             });
+                    //         } catch (e) {
+                    //             console.log('[LOGGING ERROR]: ', e);
+                    //         }
+                    //         break;
+                    // }
+                }
+            });
+        });
+    };
+})(jQuery);

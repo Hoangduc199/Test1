@@ -1,0 +1,165 @@
+(function (w, d) {
+    w.LINKHAY_CHECKER = {
+        cookies: {},
+        events: {
+            comment: {
+                view: 0,
+                post: 2,
+                vote: 3,
+                report: 4,
+                hide: 6,
+                enable: 7,
+                reply: 8,
+                hot: 17
+            },
+            user: {
+                mute: 9,
+                unmute: 10,
+                block: 11,
+                unblock: 12,
+                follow: 24,
+                unfollow: 25
+            },
+            link: {
+                click_title: 1,
+                vote: 13,
+                add: 14,
+                reshare: 15,
+                hot: 16
+            }
+        },
+        path: 'lhrcm'
+    };
+    w.LINKHAY_DOMAIN_DEFAULT = 'lg1.logging.admicro.vn';
+    w.LINKHAY_DOMAINS = {
+        "lg1.logging.admicro.vn": "contineljs.com"
+    };
+
+    function linkhayLogging() {
+        this._uid = null;
+        this._vietId = typeof(viet_id) !== "undefined" ? viet_id : 0;
+        this._eventId = null;
+    }
+
+    linkhayLogging.prototype.getUId = function() {
+        var guid = '-1';
+        try {
+            guid = ADM_AdsTracking.get('__uid');
+        } catch(e) {};
+        return guid;
+    };
+
+    /**
+     *
+     * @param a module
+     * @param b action
+     * @returns {boolean}
+     * @private
+     */
+    linkhayLogging.prototype._genUrl = function(a, b) {
+        var events = w.LINKHAY_CHECKER.events,
+            eventId = typeof(events[a]) !== 'undefined' && typeof(events[a][b]) !== 'undefined' ? parseInt(events[a][b]) : -1;
+        if (eventId < 0) {
+            return false;
+        }
+
+        this._eventId = eventId;
+        var domain = w.LINKHAY_DOMAIN_DEFAULT,
+            path = w.LINKHAY_CHECKER.path,
+            url = '//' + domain + '/' + path;
+        return url;
+    };
+
+    /**
+     *
+     * @param a: vietid
+     * @param b: module
+     * @param c: action
+     */
+    linkhayLogging.prototype.event = function (b, c, d) {
+        var self = this,
+            url = self._genUrl(b, c),
+            date = new Date(),
+            newsId = -1,
+            ext = '';
+        var year = date.getFullYear(),
+            month = parseInt(date.getMonth() + 1),
+            day = parseInt(date.getDate());
+        month = month < 10 ? '0' + month : month;
+        day = day < 10 ? '0' + day : day;
+        self._uid = self.getUId();
+
+        url += '?vietid=' + self._vietId + '&event_id=' + self._eventId + '&d_guid=' + self._uid + '&dt=' + year + ':' + month + ':' + day + '&env=' + env;
+        switch (this._eventId) {
+            case 1:
+                break;
+            /** post comment **/
+            case 2:
+            /** vote comment **/
+            case 3:
+            /** report comment **/
+            case 4:
+            /** hide comment **/
+            case 6:
+            /** enable comment **/
+            case 7:
+                ext = d.comment_id;
+                break;
+            /** reply comment **/
+            case 8:
+                ext = d.parent_id + ':' + d.comment_id;
+                break;
+            /** mute user **/
+            case 9:
+            /** unmute user **/
+            case 10:
+            /** block user **/
+            case 11:
+            /** unblock user **/
+            case 12:
+            /** follow user **/
+            case 24:
+            /** unfollow user **/
+            case 25:
+                ext = d.viet_id;
+                break;
+            /** vote link **/
+            case 13:
+                ext = d.link_id;
+                break;
+            /** add link **/
+            case 14:
+                ext = d.link_type;
+                break;
+            /** reshare link **/
+            case 15:
+                ext = d.viet_id;
+                break;
+        }
+
+        if (typeof(d.link_id) !== 'undefined') {
+            newsId = d.link_id;
+        }
+        url += '&news_id=' + newsId;
+        if (ext !== '') {
+            url += '&extr=' + ext;
+        }
+        self.send(url);
+    };
+
+    /**
+     * Send logging
+     * @param url
+     */
+    linkhayLogging.prototype.send = function (url) {
+        var self = this,
+            c = new Image();
+        c.src = url;
+        c.onerror = function () {
+            url = url.replace(w.LINKHAY_DOMAIN_DEFAULT, w.LINKHAY_DOMAINS[w.LINKHAY_DOMAIN_DEFAULT]);
+            self.send(url);
+        };
+    };
+
+    w.LINKHAY_LOGGING = new linkhayLogging();
+})(window, document);

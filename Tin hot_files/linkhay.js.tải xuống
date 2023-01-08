@@ -1,0 +1,88 @@
+(function ($) {
+    'use strict';
+
+    var scripts = document.getElementsByTagName('script');
+    var last_script = scripts[scripts.length - 1];
+
+    var js_src = last_script.src;
+
+    if (!js_src || !(/\/+linkhay\.js(\?.*)?$/i).test(js_src)) {
+        console.error(new Error('Cannot detect editor script folder'));
+        return;
+    }
+
+    var res_ver_matches = js_src.match(/(\?|&)v=(\d+)([&#]|$)/);
+
+    var RES_VERSION = Array.isArray(res_ver_matches) && res_ver_matches[2] ? res_ver_matches[2] : 0;
+
+    var JS_ROOT_PATH = js_src.replace(/^(.+)\/+linkhay\.js(\?.*)?$/i, '$1');
+
+    var LH_ICON_MAP = null;
+
+    $(document).ready(function () {
+        $.ajax({
+            type: 'get',
+            url: JS_ROOT_PATH + '/sprites.svg?v=' + RES_VERSION,
+            success: function (response) {
+                var symbols = response.documentElement.getElementsByTagName('symbol');
+
+                LH_ICON_MAP = {};
+
+                for (var i = 0; i < symbols.length; i++) {
+                    var symbol = symbols[i];
+                    LH_ICON_MAP[symbol.getAttribute('id')] = symbol.getAttribute('viewBox');
+                    symbol.setAttribute('id', 'lh-' + symbol.getAttribute('id'));
+                }
+
+                var res_container = document.createElement("div");
+                document.body.insertBefore(res_container, document.body.firstChild);
+                res_container.innerHTML = new XMLSerializer().serializeToString(response.documentElement);
+
+                var icons = document.body.querySelectorAll('svg[data-icon^="lh-"]');
+
+                if (icons.length > 0) {
+                    for (var i = 0; i < icons.length; i++) {
+                        var icon = icons[i];
+
+                        var name = icon.getAttribute('data-icon').replace(/^lh-/, '');
+
+                        if (typeof LH_ICON_MAP[name] !== 'undefined') {
+                            icon.setAttribute('viewBox', LH_ICON_MAP[name]);
+                        }
+                    }
+                }
+            }
+        });
+    });
+
+    window.configLHIcon = function () {
+        if (LH_ICON_MAP === null) {
+            return;
+        }
+
+        var name = this.getAttribute('data-icon').replace(/^lh-/, '');
+
+        if (typeof LH_ICON_MAP[name] !== 'undefined') {
+            this.setAttribute('viewBox', LH_ICON_MAP[name]);
+        }
+    };
+
+    $.extend($, {
+        renderLHIcon: function (name) {
+            var viewBox = '0 0 512 512';
+
+            if (LH_ICON_MAP !== null && typeof LH_ICON_MAP[name] !== 'undefined') {
+                viewBox = LH_ICON_MAP[name];
+            }
+
+            var icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            icon.setAttribute('data-icon', 'lh-' + name);
+            icon.setAttribute('viewBox', viewBox);
+            var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+            use.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", '#lh-' + name);
+            icon.appendChild(use);
+
+            return icon;
+        }
+    });
+})(jQuery);

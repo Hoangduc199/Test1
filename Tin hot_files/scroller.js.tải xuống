@@ -1,0 +1,416 @@
+
+function osc_scroller_setter() {
+    if (typeof jQuery == 'undefined' || typeof jQuery.OSC == 'undefined' || !jQuery.oscDraggerReady) {
+        setTimeout(osc_scroller_setter, 100);
+        return;
+    }
+
+    (function ($) {
+        $.oscScrollerReady = true;
+
+        function OSC_Scroller(container, options) {
+            this.reset = function () {
+                var container_obj = $(this.container);
+                var content_obj = $(this.content);
+
+                //container_obj.height(content_obj.height());
+                this.viewport_height = container_obj.outerHeight();
+                this.content_height = content_obj.outerHeight();
+
+                this.ratio = this.viewport_height / this.content_height;
+                this.bar_ratio = this.content_height / this.viewport_height;
+
+                this.thumb_height = parseInt(this.viewport_height * this.ratio);
+
+                if (this.ratio >= 1) {
+                    $(this.track).hide();
+                }
+
+                var self = this;
+
+                if (isNaN(this.thumb_height)) {
+                    this.thumb_height = 0;
+                    setTimeout(function () {
+                        self.reset();
+                    }, 1000);
+                }
+
+                $(this.thumb).height(this.thumb_height);
+            }
+
+            this.scrollToObj = function (obj) {
+                if (typeof obj == 'string') {
+                    obj = $(obj, this.content);
+                } else if (obj.nodeName) {
+                    obj = $(obj);
+                }
+
+                var content_obj = $(this.content);
+
+                var content_offset = content_obj.offset();
+                var obj_offset = obj.offset();
+
+                var iScroll = obj_offset.top - content_offset.top;
+
+                if (this.content_height - iScroll < this.viewport_height) {
+                    iScroll = this.content_height - this.viewport_height;
+                }
+
+                this.y = iScroll / this.bar_ratio;
+
+                content_obj.css('top', -iScroll);
+                $(this.thumb).css('top', this.y);
+            }
+
+            this.getPosition = function () {
+                return Math.ceil(this.y * this.bar_ratio);
+            }
+
+            this.scrollToPosition = function (position) {
+                position = parseInt(position);
+
+                if (isNaN(position)) {
+                    position = 0;
+                } else if (position < 0) {
+                    position = -position;
+                }
+
+                position = Math.ceil(position);
+                this.y = Math.ceil(position / this.bar_ratio);
+
+                $(this.content).css('top', -position);
+                $(this.thumb).css('top', this.y);
+            }
+
+            this.wheel = function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (this.ratio < 1) {
+                    var wheel = 20;
+
+                    var content_obj = $(this.content);
+
+                    e = $.event.fix(e || window.event);
+
+                    var iDelta = 0;
+
+                    if (typeof e.wheelDelta == 'undefined') {
+                        if (typeof e.originalEvent.wheelDelta == 'undefined') {
+                            if (typeof e.detail == 'undefined') {
+                                if (typeof e.originalEvent.detail != 'undefined') {
+                                    iDelta = -e.originalEvent.detail / 3;
+                                }
+                            } else {
+                                iDelta = -e.detail / 3;
+                            }
+                        } else {
+                            iDelta = e.originalEvent.wheelDelta / 120;
+                        }
+                    } else {
+                        iDelta = e.wheelDelta / 120;
+                    }
+
+                    var iScroll = parseInt(content_obj.css('top'));
+
+                    if (isNaN(iScroll)) {
+                        iScroll = 0;
+                    }
+
+                    iScroll = -iScroll;
+                    iScroll -= iDelta * wheel;
+                    iScroll = Math.min(this.content_height - this.viewport_height, Math.max(0, iScroll));
+
+                    this.y = Math.ceil(iScroll / this.bar_ratio);
+
+                    content_obj.css('top', -iScroll);
+                    $(this.thumb).css('top', this.y);
+
+                    this.position = iScroll;
+
+                    if (typeof this.callback.wheel == 'function') {
+                        this.callback.wheel({
+                            e: e,
+                            inst: this
+                        });
+                    }
+
+                    if (iScroll == 0) {
+                        this.in_bottom_called = false;
+
+                        if (!this.in_top_called && typeof this.callback.inTop == 'function') {
+                            this.in_top_called = true;
+                            this.callback.inTop({
+                                e: e,
+                                inst: this
+                            });
+                        }
+                    } else if (this.y >= (this.viewport_height - this.thumb_height)) {
+                        this.in_top_called = false;
+
+                        if (!this.in_bottom_called && typeof this.callback.inBottom == 'function') {
+                            this.in_bottom_called = true;
+                            this.callback.inBottom({
+                                e: e,
+                                inst: this
+                            });
+                        }
+                    } else {
+                        this.in_top_called = false;
+                        this.in_bottom_called = false;
+                    }
+                }
+            }
+
+            this.scroll = function (e) {
+                if (this.ratio < 1) {
+                    var content_obj = $(this.content);
+                    var thumb_obj = $(this.thumb);
+
+                    this.y = Math.min(this.viewport_height - this.thumb_height, Math.ceil(Math.max(0, (this.position_start + (e.pageY - this.mouse_start)))));
+
+                    var iScroll = this.y * this.bar_ratio;
+                    content_obj.css('top', -iScroll);
+                    thumb_obj.css('top', this.y);
+
+                    this.position = iScroll;
+
+                    if (this.y == 0) {
+                        this.in_bottom_called = false;
+
+                        if (!this.in_top_called && typeof this.callback.inTop == 'function') {
+                            this.in_top_called = true;
+                            this.callback.inTop({
+                                e: e,
+                                inst: this
+                            });
+                        }
+                    } else if (this.y >= (this.viewport_height - this.thumb_height)) {
+                        this.in_top_called = false;
+
+                        if (!this.in_bottom_called && typeof this.callback.inBottom == 'function') {
+                            this.in_bottom_called = true;
+                            this.callback.inBottom({
+                                e: e,
+                                inst: this
+                            });
+                        }
+                    } else {
+                        this.in_top_called = false;
+                        this.in_bottom_called = false;
+                    }
+                }
+            }
+
+            this._setDragArea = function (e, dragger) {
+                var track_obj = $(this.track);
+                var thumb_obj = $(this.thumb);
+
+                var track_offset = track_obj.offset();
+
+                dragger.min_coords = {
+                    x: track_offset.left,
+                    y: track_offset.top
+                };
+
+                dragger.max_coords = {
+                    x: track_offset.left,
+                    y: track_offset.top + track_obj.outerHeight() - thumb_obj.outerHeight()
+                };
+
+                this.mouse_start = e.pageY;
+                var thumb_dir = parseInt(thumb_obj.css('top'));
+                this.position_start = isNaN(thumb_dir) ? 0 : thumb_dir;
+            }
+
+            this._mouseOverHook = function () {
+                clearTimeout(this.timer);
+
+                if (this.auto_reset) {
+                    this.reset();
+                }
+
+                $(this.track)[this.ratio < 1 ? 'show' : 'hide']();
+            }
+
+            this._hideScroller = function () {
+                if (this.scrolling) {
+                    var self = this;
+                    this.timer = setTimeout(function () {
+                        self._hideScroller();
+                    }, 100);
+                    return;
+                }
+
+                $(this.track).hide();
+            }
+
+            if (typeof options != 'object') {
+                options = {};
+            }
+
+            options.index = container.id;
+            options.container = container;
+
+            this.index = null;
+            this.container = null;
+            this.thumb = null;
+            this.track = null;
+            this.content = null;
+            this.name = null;
+            this.renderer = null;
+            this._hook_funcs = {
+                mouse_over: null,
+                mouse_out: null
+            };
+            this.callback = {};
+            this.timer = null;
+            this.in_top_called = null;
+            this.in_bottom_called = null;
+            this.scrolling = false;
+
+            $.extend(this, options);
+
+            if (typeof this.renderer != 'object' || this.renderer === null) {
+                this.renderer = new OSC_Scroller_Renderer();
+            }
+
+            this.renderer.setInstance(this).render();
+
+            var self = this;
+
+            $(this.thumb).osc_dragger({
+                target: this.thumb,
+                cursor_type: 'pointer',
+                callback: {
+                    fire: function (params) {
+                        self.scrolling = true;
+
+                        if (typeof self.callback.fire == 'function') {
+                            self.callback.fire({
+                                e: params.e
+                            });
+                        }
+
+                        self._setDragArea(params.e, params.inst);
+                    },
+                    drag: function (params) {
+                        self.scrolling = true;
+
+                        self.scroll(params.e);
+
+                        if (typeof self.callback.drag == 'function') {
+                            self.callback.drag({
+                                e: params.e
+                            });
+                        }
+                    },
+                    drop: function (params) {
+                        self.scrolling = false;
+
+                        if (typeof self.callback.drop == 'function') {
+                            self.callback.drop({
+                                e: params.e
+                            });
+                        }
+                    }
+                }
+            });
+
+            if (container.addEventListener) {
+                container.addEventListener('DOMMouseScroll', function (e) {
+                    self.wheel(e);
+                }, false);
+                container.addEventListener('mousewheel', function (e) {
+                    self.wheel(e);
+                }, false);
+            } else {
+                container.onmousewheel = function (e) {
+                    self.wheel(e);
+                };
+            }
+
+            this._hook_funcs._mouse_over = function () {
+                self._mouseOverHook();
+            };
+            this._hook_funcs._mouse_out = function () {
+                self.timer = setTimeout(function () {
+                    self._hideScroller();
+                }, 100);
+            }
+
+            $(container).hover(this._hook_funcs._mouse_over, this._hook_funcs._mouse_out);
+
+            this.reset();
+        }
+
+        function OSC_Scroller_Renderer() {
+            this.setInstance = function (inst) {
+                this.inst = inst;
+                return this;
+            }
+
+            this.render = function () {
+                this.inst.content = $.createElement('div');
+
+                while (this.inst.container.childNodes.length > 0) {
+                    this.inst.content.appendChild(this.inst.container.childNodes[0]);
+                }
+
+                $(this.inst.container).addClass('osc-scroller').html(this.inst.content);
+                $(this.inst.content).addClass('content');
+
+                this.inst.track = $.createElement('div', {
+                    className: 'track'
+                }, {}, this.inst.container);
+                this.inst.thumb = $.createElement('div', {
+                    className: 'thumb'
+                }, {}, this.inst.track);
+            }
+
+            this.inst = null;
+        }
+
+        $.fn.osc_scroller = function () {
+            var func = null;
+
+            if (arguments.length > 0 && typeof arguments[0] == 'string') {
+                func = arguments[0];
+            }
+
+            if (func) {
+                var opts = [];
+
+                for (var x = 1; x < arguments.length; x++) {
+                    opts.push(arguments[x]);
+                }
+            } else {
+                opts = arguments[0];
+            }
+
+            if (func && func.toLowerCase() == 'getposition') {
+                var instance = $(this).data('osc-scroller');
+                return instance ? instance.getPosition() : null;
+            }
+
+            return this.each(function () {
+                var instance = $(this).data('osc-scroller');
+
+                if (func) {
+                    if (instance) {
+                        instance[func].apply(instance, opts);
+                    }
+                } else {
+                    if (!instance) {
+                        $(this).data('osc-scroller', new OSC_Scroller(this, opts));
+                    }
+                }
+            });
+        };
+
+        window._initOSCScroller = function (node) {
+            $(node).osc_scroller();
+        };
+    })(jQuery);
+}
+osc_scroller_setter();

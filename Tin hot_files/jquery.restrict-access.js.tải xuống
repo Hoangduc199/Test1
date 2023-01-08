@@ -1,0 +1,161 @@
+(function($, window, document) {
+    var modalContainer;
+    var interval;
+    $.fn.linkhayRestrictAccess = function(settings) {
+        var defaults = {
+            container: 'linkhay-popup-container',
+            className: 'linkhay-popup-container',
+            mobile: false,
+            restrictType: 'linkhay',
+            callback: null,
+            callbackClose: null,
+            challengeType: null,
+        };
+        //xử lý tham số mặc định
+        settings = $.extend({
+        }, defaults, settings);
+
+        if (typeof LH_TPL_MOBILE_ENV_FLAG !== 'undefined' && LH_TPL_MOBILE_ENV_FLAG == 1) {
+            settings.mobile = true;
+        }
+
+        var element = $(this);
+        var initTemplate = function() {
+            const templates =
+                `
+                <div id="${settings.container}" class="${settings.className}" data-mobile="${settings.mobile.toString()}">
+                    <div class="modal-layout hidden">
+                        <div class="modal">
+                            <div class="modal-header">
+                                <span>Thông báo</span>
+                                <span style="position: absolute; right: 0;top: 0; font-size: 12px; font-weight: normal;">Tổng số lượt&nbsp;<span id="linkhay-captcha-counter-recent" style="margin: 0; font-size: 12px; font-weight: normal;"></span> / <span id="linkhay-captcha-counter" style="margin: 0; font-size: 12px; font-weight: normal;"></span></span>
+                            </div>
+                            <div class="modal-body clearfix"></div>
+                            <div class="modal-footer">
+                                <button class="btn-cancel btn-button">Hủy bỏ</button>
+                                <button class="btn- btn-button btn-default btn-button-verify">Xác minh</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            if ($('#' + settings.container).length <= 0) {
+                $(element).append(templates);
+            }
+            modalContainer = $('#' + settings.container);
+        };
+
+        var closeModal = function() {
+            document.body.style.overflow = "";
+            modalContainer.find('.modal-layout').addClass('hidden');
+            if (typeof settings.callbackClose === 'function') {
+                settings.callbackClose();
+            }
+        };
+
+        var setupActions = function() {
+            //cancel modal:
+            $('.btn-cancel', modalContainer).off('click').on('click', closeModal);
+            $('.btn-button-verify', modalContainer).off('click').on('click', function() {
+                if (typeof settings.callback === 'function') {
+                    settings.callback();
+                }
+                closeModal();
+            });
+        };
+
+        var restrictType = {
+            linkhay: function() {
+                var counter = 120;
+                $('.captcha-time-refresh', modalContainer).html(counter);
+                interval = setInterval(function() {
+                    if (counter >= 0 && counter <= 120) {
+                        $('.captcha-time-refresh', modalContainer).html(counter);
+                        counter--;
+                    } else {
+                        var img = $('.captcha-linkhay-image', modalContainer);
+                        var src = img.attr('src');
+                        src = src.replace(/t=[\d]+/g, '');
+                        img.attr('src', src + 't=' + (new Date()).getTime());
+                        counter = 120;
+                        $('.captcha-time-refresh', modalContainer).html(counter);
+                    }
+                }, 1000);
+            },
+            googleRecaptchaV2: function() {
+                try {
+                    window.grecaptcha.render('linkhay-google-recaptcha', {
+                        callback: function(response) {
+                            $('.captcha-input', $('#linkhay-popup-container .captcha-container')).val(response);
+                        }
+                    });
+                } catch (e) {}
+            },
+            hCaptcha: function() {
+                try {
+                    const callback = function(response) {
+                        $('.captcha-input', $('#linkhay-popup-container .captcha-container')).val(response);
+                    };
+                    if (typeof hcaptcha === 'undefined') {
+                        $.getScript('//js.hcaptcha.com/1/api.js?recaptchacompat=off', function() {
+                            window.hcaptcha.render('linkhay-hcaptcha', {
+                                callback: callback
+                            });
+                        });
+                    } else {
+                        window.hcaptcha.render('linkhay-hcaptcha', {
+                            callback: callback
+                        });
+                    }
+                } catch (e) {}
+            }
+        };
+
+        // public methods
+        this.initialize = function() {
+            initTemplate();
+            setupActions();
+
+            if (interval !== null) {
+                clearInterval(interval);
+            }
+
+            // do something ...
+            return this;
+        };
+
+        this.show = function(data, callback) {
+            if (typeof data.html !== 'undefined') {
+                let counterRecent = parseInt(data.challenge_success);
+                counterRecent++;
+                $('#linkhay-captcha-counter-recent').html(counterRecent);
+                $('#linkhay-captcha-counter').html(data.challenge_counter);
+                $('.modal-body', modalContainer).html(data.html);
+            }
+            modalContainer.find('.modal-layout').removeClass('hidden');
+            document.body.style.overflow = "hidden";
+
+            if (typeof callback !== 'undefined') {
+                settings.callback = callback;
+            }
+
+            switch (settings.restrictType.toLowerCase()) {
+                case 'linkhay':
+                    restrictType.linkhay();
+                    break;
+                case 'google_recaptcha_v2':
+                    restrictType.googleRecaptchaV2();
+                    break;
+                case 'h_captcha':
+                    restrictType.hCaptcha();
+                    break;
+            }
+        };
+
+        this.close = function() {
+            closeModal();
+        };
+
+        return this.initialize();
+    };
+})(jQuery, window, document);

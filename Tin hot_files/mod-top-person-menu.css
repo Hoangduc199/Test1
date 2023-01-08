@@ -1,0 +1,63 @@
+#profile a.username img.fix-bor-dropuser { border-left:1px dotted #c2c2c2; height:13px;}
+#account {color: #000;float: right}
+	#account a {font-weight: bold;color: #000;line-height: 20px}
+	#account a:hover {text-decoration: none;color: #C00607}
+#profile {line-height:25px;height:27px}
+/*        Xuan Anh - 06/2012 */
+#profile a.username {font-weight: bold;text-decoration: none;color: #333;vertical-align: 4px}
+#profile li a.username:hover {text-decoration:none;color: #C00607}
+#profile .avatar {border:1px solid #ccc;vertical-align:-5px;padding:1px}
+
+/*        Xuan Anh - 28/06/2012 */
+.account-link .iarrow-gray-down:hover {
+    background: url("../../images/new_version/menu-icon-click.png") no-repeat;
+    width: 19px;
+    height: 15px;
+    margin-top: 6px;
+}
+
+
+#profile .account-link {
+    cursor:pointer;
+    display:inline-block;
+    /*            padding-bottom:8px*/
+}
+
+.menu-new-drop-down {
+    margin-left: 6px;
+    margin-right: 8px;
+}
+
+.menu-dropdown-expanded .menu-new-drop-down{
+    background: url("../../images/new_version/menu-icon-click.png") no-repeat;
+    width: 19px;
+    height: 15px;
+    margin-top: 6px;
+}
+
+.lst-menu-person {display:block}
+		.lst-menu-person  li.notify-box {margin-top:1px}
+		.lst-menu-person li.connect-grp {}
+		.lst-menu-person > li {float:left;position:relative}
+		.lst-menu-person > li.separator{color:#d1d1d1;margin: 0 10px 0 5px;font-weight:normal}
+		.lst-menu-person .iarrow-gray-down {vertical-align: 1px}
+		.header .guest-panel{width: 230px}
+		.header .guest-panel a{font-weight: bold}
+		.header .submit {color:#fff;background:#e30000;width:62px;height:27px;line-height:25px;display:inline-block;margin-right:10px;-moz-border-radius:3px;-webkit-border-radius:3px;border-radius:3px;font-size:13px;font-weight:bold}
+		.header .submit.anhhot {background:#4765a3;}
+		.header .submit.media {background:#1095ea; width: 90px;}
+		.header .submit.link-note {background:#54a700; width: 120px;}
+		.header .submit.multipart {background:#eacc00; width: 110px;}
+		.header .connect {background-attachment:scroll;background-color:transparent;background-position:0 50%;background-repeat:no-repeat;padding-left:21px;height:27px;line-height:27px;font-size:11px;font-weight:bold;font-family:Arial, Helvetica, sans-serif;color:#636363}
+
+.channel-dropdown .lst-menuperson-child a {color:#666;}
+.channel-dropdown .lst-menuperson-child a:hover {color:#c00607;}
+.channel-dropdown .lst-menuperson-child a .count {color:#c00607; font-weight:bold;}
+.channel-dropdown .lst-menuperson-child a:hover .count {color:#3d3d3d;}
+
+.channel-dropdown .lnkcount { color:#c00607; font-family:Arial; font-weight:bold; font-size:11px; 
+                              /*           margin-left:15px; */
+                              margin-right:5px; }
+.channel-dropdown .icn-down { margin-top:5px; margin-right:3px; vertical-align:-3px; }
+.channel-dropdown .icn-member {top:10px;}
+/*Xuan Anh End*/

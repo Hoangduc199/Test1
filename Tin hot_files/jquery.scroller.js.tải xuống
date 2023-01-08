@@ -1,0 +1,639 @@
+/**
+ * JQUERY PLUGIN: SCROLLER
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the GNU General Public License version 3
+ * that is bundled with this package in the file LICENSE.txt.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.gnu.org/licenses/gpl-3.0.html
+ * If you did not receive a copy of the license and are unable to
+ * obtain it through the world-wide-web, please send an email
+ * to license@osecore.com so we can send you a copy immediately.
+ *
+ * DISCLAIMER
+ *
+ * Do not edit or add to this file if you wish to upgrade OSECORE to newer
+ * versions in the future. If you wish to customize OSECORE for your
+ * needs please refer to http://www.osecore.com for more information.
+ *
+ * @copyright	Copyright (C) 2011 by Sang Le Tuan (http://www.osecore.com). All rights reserved.
+ * @license     http://www.gnu.org/licenses/gpl-3.0.html GNU General Public License version 3
+ * @author      Sang Le Tuan - batsatla@gmail.com
+ */
+
+(function($){
+	function OSCScroller() {
+		
+	}
+	
+	$.extend(OSCScroller.prototype, {
+		instances : {},
+		
+		initialize : function(viewport, options) {
+			if(typeof options != 'object') {
+				options = {};
+			}
+			
+			options.id = viewport.id;
+			options.viewport = viewport;
+			
+			var inst = {
+				id : null,
+				auto_hide : true,
+				viewport : null,
+				viewportMouseOverHandler : null,
+				viewportMouseOutHandler : null,
+				scrollBarMouseDownHandler : null,
+				docMouseMoveHandler : null,
+				docMouseUpHandler : null,
+				callback : {},
+				scroll : {
+					bar : null, 
+					node : null
+				},
+				divergent : 4,
+				inBottomCalled : false,
+				inTopCalled : false
+			};
+			
+			$.extend(inst, options);
+			
+			this.instances[inst.id] = inst;
+			
+			for(var x = viewport.childNodes.length - 1; x >= 0; x --) {
+				if(!viewport.childNodes[x].tagName) {
+					viewport.removeChild(viewport.childNodes[x]);
+				}
+			}
+			
+			inst.content = viewport.firstChild;
+			
+			$(viewport).addClass('oscScroller').attr('unselectable', 'on');	
+			$(viewport.firstChild).css('position', 'absolute');
+			
+			inst.track = document.createElement('div');
+			$(inst.track).addClass('scrollBar');
+			inst.viewport.appendChild(inst.track);
+			
+			inst.thumb = document.createElement('div');
+			$(inst.thumb).addClass('node').html('&nbsp;').attr('unselectable', 'on');
+			inst.track.appendChild(inst.thumb);
+			
+			inst.topBtn = document.createElement('div');
+			$(inst.topBtn).addClass('scrollToTop').html('<i></i>').bind('click', function(){
+				inst.y = 0;
+				
+				$(inst.content).css('top', 0);
+				$(inst.thumb).css('top', 0);
+				
+				if(typeof inst.callback.inTop == 'function') {
+					inst.callback.inTop(0, inst);
+				}
+			});
+			inst.viewport.appendChild(inst.topBtn);
+			
+			inst.viewportMouseOverHandler = function() {
+				$.oscScroller._mouseover(inst);
+			}
+			
+			inst.viewportMouseOutHandler = function() {
+				inst.timer = setTimeout(function(){ $.oscScroller._hideScroller(inst); }, 100);
+			}
+			
+			$(inst.thumb).oscDragger({
+				target : inst.thumb,
+				cursorType : 'pointer',
+				callback : {
+					fire : function(params) {
+						inst.scrolling = true;
+						
+						if(typeof inst.callback.fire == 'function') {
+							inst.callback.fire({
+								e : params.e
+							});
+						}
+						
+						$.oscScroller.setDragArea(inst, params.e);
+					},
+					
+					drag : function(params) {
+						inst.scrolling = true;
+						
+						$.oscScroller.scroll(inst, params.e);
+						
+						if(typeof inst.callback.drag == 'function') {
+							inst.callback.drag({
+								e : params.e
+							});
+						}
+					},
+					
+					drop : function(params) {
+						inst.scrolling = false;
+						
+						if(typeof inst.callback.drop == 'function') {
+							inst.callback.drop({
+								e : params.e
+							});
+						}
+					}
+				}
+			});
+			
+			if(viewport.addEventListener){
+				viewport.addEventListener('DOMMouseScroll', function(e){ $.oscScroller.wheel(e, inst); }, false);
+				viewport.addEventListener('mousewheel', function(e){ $.oscScroller.wheel(e, inst); }, false );
+			} else {
+				viewport.onmousewheel = function(e){ $.oscScroller.wheel(e, inst); };
+			}
+			
+			$(viewport).hover(inst.viewportMouseOverHandler, inst.viewportMouseOutHandler);
+			
+			$(inst.viewport).data('osc-scroller', inst);
+			
+			this.reset(inst);
+		},
+		
+		reset : function(inst) {
+			$(inst.viewport).height($(inst.viewport.firstChild).height());
+			inst.viewportH = $(inst.viewport).height();
+			inst.contentH = $(inst.content).height();
+			
+			inst.ratio = inst.viewportH/inst.contentH;
+			inst.barRatio = inst.contentH/inst.viewportH;
+			
+			inst.thumbH = parseInt(inst.viewportH*inst.ratio);
+			
+			if(inst.ratio >= 1) {
+				$(inst.track).hide();
+			} else if(! inst.auto_hide) {
+				$(inst.track).show();			
+			}
+						
+			if(isNaN(inst.thumbH)) {
+				inst.thumbH = 0;
+				setTimeout(function(){ $.oscScroller.reset(inst); }, 1000);
+			}
+
+			$(inst.thumb).css('height', (inst.thumbH - 4) + 'px');
+		},
+		
+		scrollToObj : function(inst, obj) {
+			if(typeof obj == 'string') {
+				obj = $(obj, inst.content);
+			}
+			
+			var contentOffset = $(inst.content).offset();
+			var objOffset = obj.offset();
+			
+			var iScroll = objOffset.top - contentOffset.top;
+			
+			if($(inst.content).height()-iScroll < $(inst.viewport).height()) {
+				iScroll = $(inst.content).height() - $(inst.viewport).height();
+			}
+			
+			inst.y = iScroll/inst.barRatio;
+				
+			$(inst.content).css('top', -iScroll);
+			$(inst.thumb).css('top', inst.y);
+		},
+		
+		wheel : function(e, inst){						
+			if(inst.ratio < 1){						
+				var wheel = 20;
+				
+				e = $.event.fix(e || window.event);
+				var iDelta = e.wheelDelta ? e.wheelDelta/120 : -e.detail/3;
+				var iScroll = parseInt($(inst.content).css('top'));
+				
+				if(isNaN(iScroll)) {
+					iScroll = 0;
+				}
+				
+				iScroll = -iScroll;
+				
+				iScroll -= iDelta * wheel;
+				iScroll = Math.min(inst.contentH - inst.viewportH, Math.max(0, iScroll));
+				
+				inst.y = Math.ceil(iScroll/inst.barRatio);
+				
+				$(inst.content).css('top', -iScroll);
+				$(inst.thumb).css('top', inst.y);
+				e.preventDefault();
+				
+				if(typeof inst.callback.wheel == 'function') {
+					inst.callback.wheel({e : e, inst : inst, pos : iScroll});
+				}
+				
+				if(iScroll == 0) {
+					inst.inBottomCalled = false;
+					
+					if(!inst.inTopCalled && typeof inst.callback.inTop == 'function') {
+						inst.inTopCalled = true;
+						inst.callback.inTop({e : e, inst : inst, pos : iScroll});
+					}	
+				} else if(inst.y >= inst.viewportH - inst.thumbH) {		
+					inst.inTopCalled = false;
+					
+					if(!inst.inBottomCalled && typeof inst.callback.inBottom == 'function') {
+						inst.inBottomCalled = true;
+						inst.callback.inBottom({e : e, inst : inst, pos : iScroll});
+					}
+				} else {
+					inst.inTopCalled = false;
+					inst.inBottomCalled = false;
+				}
+			}
+		},
+		
+		scroll : function(inst, e) {		
+			if(inst.ratio < 1){
+				inst.y = Math.min(inst.viewportH-inst.thumbH, Math.ceil(Math.max(0, (inst.positionStart + (e.pageY - inst.mouseStart)))));
+				iScroll = inst.y * inst.barRatio;
+				$(inst.content).css('top', -iScroll);
+				$(inst.thumb).css('top', inst.y);
+				
+				if(inst.y == 0) {
+					inst.inBottomCalled = false;
+					
+					if(!inst.inTopCalled && typeof inst.callback.inTop == 'function') {
+						inst.inTopCalled = true;
+						inst.callback.inTop({e : e, inst : inst, pos : iScroll});
+					}	
+				} else if(inst.y >= (inst.viewportH - inst.thumbH)) {
+					inst.inTopCalled = false;
+					
+					if(!inst.inBottomCalled && typeof inst.callback.inBottom == 'function') {
+						inst.inBottomCalled = true;
+						inst.callback.inBottom({e : e, inst : inst, pos : iScroll});
+					}
+				} else {
+					inst.inTopCalled = false;
+					inst.inBottomCalled = false;				
+				}
+			}
+		},
+		
+		setDragArea : function(inst, e) {
+			$.oscDragger.CURRENT.minCoords = {
+				x : $(inst.track).offset().left,
+				y : $(inst.track).offset().top
+			};
+			
+			$.oscDragger.CURRENT.maxCoords = {
+				x : $(inst.track).offset().left,
+				y : $(inst.track).offset().top + $(inst.track).height() - $(inst.thumb).height()
+			};
+			
+			$.oscDragger.CURRENT.divergent = {
+				x : - $.oscDragger.CURRENT.minCoords.x,
+				y : - $.oscDragger.CURRENT.minCoords.y
+			};
+			
+			inst.mouseStart = e.pageY;
+			var thumbDir = parseInt($(inst.thumb).css('top'));
+			inst.positionStart = isNaN(thumbDir) ? 0 : thumbDir;
+		},
+		
+		_hideScroller : function(inst) {
+			if(inst.scrolling) {
+				inst.timer = setTimeout(function(){ $.oscScroller._hideScroller(inst); }, 100);
+				return;
+			}
+			
+			if(inst.auto_hide) {
+				$(inst.track).hide();
+			}
+			
+			$(inst.topBtn).hide();
+		},
+		
+		_mouseover : function(inst) {
+			clearTimeout(inst.timer);
+			
+			if(inst.autoReset) {
+				this.reset(inst);
+			}
+						
+			if(inst.ratio < 1) {
+				$(inst.track).show();
+			} else {
+				if(inst.auto_hide) {
+					$(inst.track).hide();	
+				}
+			}
+			
+			if(inst.y > 0) {				
+				$(inst.topBtn).show();
+			}
+		},
+		
+		getInstance : function(id) {
+			return this.instances[id];
+		},
+		
+		removeInstance : function(id) {
+			if(this.instances[id]) {
+				$(this.instances[id].viewport).data('osc-scroller', 0);
+			}
+			
+			this.instances[id] = null;
+		}
+	});
+	
+	$.oscScroller = new OSCScroller(); // Singleton instance
+	
+	$.fn.oscScroller = function(options){
+		return this.each(function(){
+			if(! $(this).data('osc-scroller')) {	
+				$.oscScroller.initialize(this, options);
+			} else {
+				$.oscScroller.reset($(this).data('osc-scroller'));
+			}
+		});
+	}
+})(jQuery);
+
+
+
+(function($){
+	function OSCDragger() {
+        
+	}
+    
+	$.extend(OSCDragger.prototype, {
+		CURRENT : null,
+		instances : {},
+        
+		initialize : function(bar, options) {
+			if(typeof bar != 'object') {
+				bar = $('#' + bar).get(0);
+			}
+		
+			if(typeof options.target != 'object') {
+				options.target = $('#' + options.target).get(0);
+			}
+            
+			options.id = bar.id;
+			options.bar = bar;
+        
+			var inst = {
+				id : null,
+				bar : null,
+				target : null,
+				coordsInBar : {
+					x : 0, 
+					y : 0
+				},
+				coords : {
+					x : 0, 
+					y : 0
+				},
+				minCoords : null,
+				maxCoords : null,
+				_minCoords : {},
+				_maxCoords : {},
+				divergent : null,
+				callback : {},
+				cursorType : 'move',
+				fireFunction : null,
+				dragFunction : null,
+				dropFunction : null,
+				locked : false
+			};
+            
+			$.extend(inst, options);
+            
+			inst.fireFunction = function(e){
+				$.oscDragger.fire(e, inst);
+			};
+             
+			this.instances[inst.id] = inst;
+           
+			$(inst.bar).bind('mousedown', inst.fireFunction).css('cursor', inst.cursorType);
+		},
+		
+		lock : function(inst, state) {
+			inst.locked = state ? true : false;
+		},
+
+		fire : function(e, inst) {
+			if(inst.locked) {
+				return true;
+			}
+			
+			$.oscDragger.CURRENT = inst;
+
+			if(typeof inst.callback.fire != 'undefined') {
+				inst.callback.fire({
+					e : e,
+					bar : inst.bar
+				});
+			}
+
+			inst._minCoords = {};
+			inst._maxCoords = {};
+
+			var docDim = $.getDocumentDim();
+
+			var maxX = docDim.w - $(inst.target).width();
+			var maxY = docDim.h - $(inst.target).height();
+
+			if(inst.minCoords == null) {
+				inst._minCoords.x = 0;
+				inst._minCoords.y = 0;
+			} else {
+				inst._minCoords = inst.minCoords;
+			}
+
+			if(inst.maxCoords == null) {
+				inst._maxCoords.x = maxX;
+				inst._maxCoords.y = maxY;
+			} else {
+				if(inst.maxCoords.x > maxX) {
+					inst.maxCoords.x = maxX;
+				}
+
+				if(inst.maxCoords.y > maxY) {
+					inst.maxCoords.y = maxY;
+				}
+
+				inst._maxCoords = inst.maxCoords;
+			}
+
+			var cursorCoords = {
+				x : e.pageX, 
+				y : e.pageY
+			};
+            
+			var targetCoords = $(inst.target).offset();
+            
+			targetCoords = {
+				x : targetCoords.left, 
+				y : targetCoords.top
+			};
+
+			inst.coordsInBar.x = cursorCoords.x - targetCoords.x;
+			inst.coordsInBar.y = cursorCoords.y - targetCoords.y;
+			
+			if(inst.dragFunction != null) {
+				$(document).unbind('mousemove', inst.dragFunction).unbind('mouseup', inst.dropFunction);				
+			}
+            
+			inst.dragFunction = function(e){
+				$.oscDragger.drag(e, inst);
+			};
+			inst.dropFunction = function(e){
+				$.oscDragger.drop(e, inst);
+			};
+
+			$(document).bind('mousemove', inst.dragFunction).bind('mouseup', inst.dropFunction);
+			$(document.body).addClass('osc-scroller-dis-sel');
+			
+			e.preventDefault();
+
+			return false;
+		},
+        
+		drag : function(e, inst) {
+			var cursorCoords = {
+				x : e.pageX, 
+				y : e.pageY
+			};
+
+			var x = cursorCoords.x - inst.coordsInBar.x;
+			var y = cursorCoords.y - inst.coordsInBar.y;
+
+			if(x < inst._minCoords.x) {
+				x = inst._minCoords.x;
+			} else if(x > inst._maxCoords.x) {
+				x = inst._maxCoords.x;
+			}
+
+			if(y < inst._minCoords.y) {
+				y = inst._minCoords.y;
+			} else if(y > inst._maxCoords.y) {
+				y = inst._maxCoords.y;
+			}
+		
+			if(inst.divergent) {
+				x += inst.divergent.x;
+				y += inst.divergent.y;
+			}
+
+			$(inst.target).setStyles({
+				left : x + 'px',
+				top: y + 'px'
+			});
+			
+			inst.coords = {
+				x : x, 
+				y : y
+			};
+
+			if(typeof inst.callback.drag != 'undefined') {
+				inst.callback.drag({
+					e : e,
+					bar : inst.bar,
+					x : x,
+					y : y
+				});
+			}
+		},
+
+		drop : function(e, inst) {
+			if(typeof inst.callback.drop != 'undefined') {
+				inst.callback.drop({
+					e : e,
+					bar : inst.bar
+				});
+			}
+
+			$(document).unbind('mousemove', inst.dragFunction).unbind('mouseup', inst.dropFunction);
+			$(document.body).removeClass('osc-scroller-dis-sel');
+			
+			inst.dragFunction = null;
+			inst.dropFunction = null;
+		},
+	
+		destroy : function(inst) {
+			$(document).unbind('mousemove', inst.dragFunction).unbind('mouseup', inst.dropFunction);
+            
+			$(inst.bar).unbind('onmousedown', inst.fireFunction);
+		
+			if(this.CURRENT.id == inst.id) {
+				this.CURRENT = null;
+			}
+		
+			inst = null;
+		},
+		
+		getInstance : function(id) {
+			return this.instances[id];
+		}
+	});
+    
+	$.oscDragger = new OSCDragger(); // singleton instance
+	
+	$.fn.oscDragger = function(options) {		
+		return this.each(function(){
+			$.oscDragger.initialize(this, options);	
+		});
+	};
+})(jQuery);
+
+(function($){
+	$.extend($, {
+		getDocumentDim : function() {
+			var mode = document.compatMode;
+
+			var browserDim = $.getBrowserDim();
+
+			return {
+				w : Math.max( ( mode != 'CSS1Compat' ) ? document.body.scrollWidth : document.documentElement.scrollWidth, browserDim.w ),
+				h : Math.max( ( mode != 'CSS1Compat' ) ? document.body.scrollHeight : document.documentElement.scrollHeight, browserDim.h )
+			};
+		},
+
+		getBrowserDim : function() {
+			var dim = {
+				w : self.innerWidth,
+				h : self.innerHeight
+			};
+
+			var mode = document.compatMode;
+
+			if ( ( mode || $.browser.msie ) && ! $.browser.opera ) {
+				dim.w = ( mode == 'CSS1Compat' ) ? document.documentElement.clientWidth : document.body.clientWidth;
+				dim.h = ( mode == 'CSS1Compat' ) ? document.documentElement.clientHeight : document.body.clientHeight;
+			}
+
+			return dim;
+		}
+	});
+})(jQuery);
+
+(function($){
+	$.extend($.fn, {
+		setAttrs : function(attribs) {
+			return this.each(function(){
+				for(var x in attribs) {
+					try {
+						this[x] = attribs[x];
+					} catch(e){}
+				}
+			});
+		},
+
+		setStyles : function(styles) {
+			return this.each(function(){
+				for(var x in styles) {
+					try {
+						this.style[x] = styles[x];
+					} catch(e){}
+				}
+			});
+		}
+	});
+})(jQuery);

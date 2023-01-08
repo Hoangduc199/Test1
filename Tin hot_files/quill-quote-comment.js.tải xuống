@@ -1,0 +1,210 @@
+var Embed = Quill.import('blots/embed');
+
+class CommentQuote extends Embed {
+    static create(value) {
+        let node = super.create(value);
+        var countEnter = 0;
+
+        node.setAttribute('data-comment-id', value.comment_id);
+        //The marker is the $ rel_table[id] reference
+
+        node.setAttribute('data-user-id', value.user_id);
+
+        node.setAttribute('data-username', value.username);
+
+        node.setAttribute('data-content', value.content);
+
+        node.setAttribute('data-created-date', value.created_date);
+        //
+
+        let template = `<span><span class="quote-comment-header"><span class="quote-comment-username">${value.username}</span> bình luận - <span class="moment-time-diff" data-date="${value.created_date}"></span></span>`;
+
+        node.innerHTML = template;
+
+        let btnDel = document.createElement('button');
+        
+        btnDel.className = 'btn-quote-comment-delete';
+
+        function actionDelete() {
+            let self = this;
+            try {
+                jQuery(self).parents('p').remove();
+                //self.parentNode.parentNode.remove();
+            } catch (e) {
+                console.error(e.getMessage());
+            }
+        };
+
+        btnDel[window.addEventListener ? 'addEventListener' : 'attachEvent'](window.addEventListener ? 'click' : 'onclick', actionDelete, false);
+
+        let commentContent = document.createElement('span');
+        let textAreaContent = document.createElement("textarea");
+        textAreaContent.innerHTML = value.content;
+        commentContent.innerHTML = textAreaContent.value;
+
+        commentContent.setAttribute('contenteditable', true);
+        
+        commentContent.className = "quote-comment-content";
+        
+        function editCommentContent(event) {
+            let self = this;
+            try {
+                
+                if (event.keyCode === 13 && countEnter >= 1) {
+                    event.preventDefault();
+                    
+                    var selectNode = node.parentNode;
+                    
+                    if (! selectNode.nextSibling) {
+                        var nextNode = document.createElement('p');
+                        var breakNode = document.createElement('br');
+                        
+                        nextNode.append(breakNode);
+                        
+                        selectNode.parentNode.appendChild(nextNode);
+                    }
+                    var range = document.createRange();
+                    var selection = window.getSelection();
+                    
+                    range.setStart(selectNode.nextSibling.firstChild, 0);
+                    range.setEnd(selectNode.nextSibling.firstChild, 0);
+                    
+                    selection.removeAllRanges();
+                    
+                    selection.addRange(range);
+                    
+                    self.innerHTML = self.innerHTML.slice(0, -1);
+
+                    countEnter = 0;
+                    
+                    return;
+                } else {
+                    if (event.keyCode === 13 && event.shiftKey === true) {
+
+                        event.preventDefault();
+
+                        return;
+                    }
+
+                    if (event.keyCode === 13) {
+
+                        document.execCommand('insertLineBreak');
+
+                        event.preventDefault();
+
+                        countEnter++;
+
+                        return;
+                    }
+                }
+                
+                countEnter = 0;
+            
+            } catch (e) {
+                console.error(e.getMessage());
+            }
+
+            return true;
+        }
+
+        commentContent.addEventListener('keydown', editCommentContent, false);
+        commentContent.addEventListener('keyup', function() {
+            this.parentNode.parentNode.setAttribute('data-content', this.textContent);
+        }, false);
+
+        node.addEventListener('mouseover', function(event) {
+            if (this.querySelector('ul.btn-actions') !== null) {
+                return;
+            }
+            const ulTop = document.createElement('ul');
+            ulTop.className = 'btn-actions btn-actions-top';
+            let liNewLineBefore = document.createElement('li');
+            let newLineBeforeIcon = document.createElement('i');
+            newLineBeforeIcon.className = 'icon-new-line';
+            newLineBeforeIcon.title = 'Tạo dòng mới bên trên';
+            newLineBeforeIcon.addEventListener('click', function(e) {
+                e.preventDefault();
+                try {
+                    let range = quill.getSelection();
+                    if (range) {
+                        quill.insertText(range.index, '\n');
+                        range.length = 0;
+                        quill.setSelection(range, Quill.sources.USER);
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            });
+            liNewLineBefore.appendChild(newLineBeforeIcon);
+            ulTop.appendChild(liNewLineBefore);
+
+            const ulFooter = document.createElement('ul');
+            ulFooter.className = 'btn-actions btn-actions-footer';
+            let liNewLineAfter = document.createElement('li');
+            let newLineAfterIcon = document.createElement('i');
+            newLineAfterIcon.className = 'icon-new-line';
+            newLineAfterIcon.title = 'Tạo dòng mới bên dưới';
+            newLineAfterIcon.addEventListener('click', function(e) {
+                e.preventDefault();
+                try {
+                    let range = quill.getSelection(true);
+                    quill.setSelection(range.index + 1, 0, 'user');
+                    if (range) {
+                        let index = range.index;
+                        index++;
+                        quill.insertText(index, '\n');
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+
+            });
+            liNewLineAfter.appendChild(newLineAfterIcon);
+            ulFooter.appendChild(liNewLineAfter);
+
+            this.appendChild(ulTop);
+            this.appendChild(ulFooter);
+        });
+        node.addEventListener('mouseout', function(event) {
+            if (node.contains(event.relatedTarget)) {
+                // moused out of div
+                return;
+            }
+
+            this.querySelectorAll('ul.btn-actions').forEach(function(e) {
+                e.remove();
+            });
+        }, true);
+
+        node.appendChild(btnDel);
+        node.appendChild(commentContent);
+
+        //The title is what the user sees in their editor
+
+        return node;
+    }
+
+    static value(node) {
+        let textAreaContent = document.createElement("textarea");
+        textAreaContent.innerHTML = node.getAttribute('data-content');
+
+        return {
+            comment_id: node.getAttribute('data-comment-id'),
+            user_id: node.getAttribute('data-user-id'),
+            username: node.getAttribute('data-username'),
+            content: textAreaContent.value,
+            created_date: node.getAttribute('data-created-date')
+        };
+    }
+
+    // deleteAt() {
+    //     return true;
+    // }
+}
+
+CommentQuote.blotName = 'commentQuote';
+CommentQuote.tagName = 'comment-quote';
+
+Quill.register({
+    'formats/commentQuote': CommentQuote
+});

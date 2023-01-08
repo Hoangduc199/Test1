@@ -1,0 +1,62 @@
+(function (w, $, d) {
+    function linkhayEKYC() {
+        const body = $('body');
+        const ekycLevel = parseInt($(body).attr('data-ekyc-level'));
+        if (ekycLevel > 0) {
+            this.popup(ekycLevel);
+        }
+    }
+
+    linkhayEKYC.prototype.popup = function(level) {
+        const body = $('body');
+        const template = `<div id="plugin-ekyc">
+                            <div class="container">
+                                <div class="body">
+                                    <div class="content">
+                                        <p>
+                                            <svg width="250" height="150" viewBox="0 0 250 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path opacity="0.520097" fill-rule="evenodd" clip-rule="evenodd" d="M190.05 56.8743C192.813 57.2911 195.311 56.9654 196.953 56.0141C196.184 54.2793 194.354 52.5476 191.874 51.2609C192.291 48.4982 191.965 46.0004 191.014 44.3584C189.279 45.1276 187.548 46.957 186.261 49.437C183.498 49.0202 181 49.3459 179.358 50.2973C180.128 52.0321 181.957 53.7637 184.437 55.0504C184.02 57.8131 184.346 60.311 185.297 61.9529C187.032 61.1838 188.764 59.3544 190.05 56.8743ZM53.7108 60.2676C54.2243 62.129 55.132 63.6145 56.1942 64.3837C57.0733 63.4104 57.6523 61.7687 57.7676 59.8412C59.629 59.3277 61.1145 58.4199 61.8837 57.3577C60.9105 56.4787 59.2687 55.8996 57.3412 55.7844C56.8277 53.9229 55.92 52.4375 54.8578 51.6682C53.9787 52.6415 53.3996 54.2833 53.2844 56.2108C51.423 56.7242 49.9375 57.632 49.1682 58.6942C50.1415 59.5732 51.7833 60.1523 53.7108 60.2676ZM86.0647 130.252C84.7769 130.004 83.3265 129.041 82.0744 127.571C80.2788 128.281 78.5461 128.45 77.2925 128.065C77.5408 126.777 78.5035 125.326 79.9735 124.074C79.2634 122.279 79.0943 120.546 79.4797 119.293C80.7675 119.541 82.218 120.503 83.47 121.973C85.2656 121.263 86.9983 121.094 88.2519 121.48C88.0036 122.767 87.0409 124.218 85.5709 125.47C86.2811 127.266 86.4501 128.998 86.0647 130.252Z" fill="#354563"/>
+                                                <path fill-rule="evenodd" clip-rule="evenodd" d="M80.3841 44.562C80.3841 44.562 93.1752 38.5712 106.455 33.9988C119.734 29.4263 133.502 26.2721 133.502 26.2721C133.502 26.2721 142.953 41.6874 149 59.25C155.047 76.8127 157.687 96.5106 157.687 96.5106C157.687 96.5106 144.722 101.995 131.442 106.567C118.163 111.14 104.569 114.801 104.569 114.801C104.569 114.801 95.6015 98.7202 89.5563 81.1636C83.5111 63.607 80.3841 44.562 80.3841 44.562Z" fill="#E5E5EA"/>
+                                                <path fill-rule="evenodd" clip-rule="evenodd" d="M94.6454 58.2521C95.4994 60.7325 94.181 63.4357 91.7006 64.2898C90.1892 64.8102 88.5951 64.524 87.387 63.6598L83.7217 64.9219C82.4162 65.3714 80.9935 64.6775 80.544 63.372C80.0945 62.0665 80.7884 60.6438 82.0938 60.1943L85.4652 59.0334C85.739 57.365 86.897 55.8964 88.6077 55.3073C91.0881 54.4533 93.7913 55.7717 94.6454 58.2521ZM98.4602 96.7736L95.0888 97.9345C93.7834 98.384 93.0895 99.8067 93.539 101.112C93.9885 102.418 95.4112 103.112 96.7167 102.662L100.382 101.4C101.59 102.264 103.184 102.55 104.696 102.03C107.176 101.176 108.494 98.4727 107.64 95.9923C106.786 93.5119 104.083 92.1935 101.603 93.0475C99.892 93.6366 98.734 95.1052 98.4602 96.7736ZM93.8707 82.4896C95.0787 83.3538 96.6728 83.64 98.1842 83.1196C100.665 82.2655 101.983 79.5624 101.129 77.0819C100.275 74.6015 97.5717 73.2831 95.0913 74.1372C93.3806 74.7262 92.2226 76.1948 91.9489 77.8633L88.5775 79.0241C87.272 79.4736 86.5781 80.8963 87.0276 82.2018C87.4771 83.5073 88.8998 84.2012 90.2053 83.7517L93.8707 82.4896Z" fill="white"/>
+                                                <path fill-rule="evenodd" clip-rule="evenodd" d="M121.095 72.9176C125.66 71.3458 128.095 66.3939 126.532 61.8573C124.97 57.3207 120.003 54.9173 115.439 56.4891C110.874 58.061 108.439 63.0128 110.001 67.5494C111.563 72.086 116.53 74.4894 121.095 72.9176Z" fill="white"/>
+                                                <path d="M135.225 76.9567C131.428 76.0578 127.886 76.5612 123.313 78.136C119.193 79.5543 115.743 81.8355 113.316 84.5002" stroke="white" stroke-width="5" stroke-linecap="round"/>
+                                                <circle cx="156" cy="96" r="15" fill="#FF2D55" stroke="white" stroke-width="2"/>
+                                                <path d="M162 90L150 102" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                <path d="M150 90L162 102" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            </svg>
+                                        </p>
+                                        <p class="head-title">Tài khoản của bạn cần được xác minh</p>
+                                        <p>Vì một lý do nào đó tài khoản của bạn đã vi phạm nội quy của LinkHay.</p>
+                                        <p style="margin-top: 10px;">Bạn vui lòng <b>mở app và làm theo hướng dẫn</b> để xác minh tài khoản trước khi tiếp tục truy cập vào Linkhay.com</p>
+                                        <p style="margin-top: 40px;">
+                                            <button class="button">Xác minh tài khoản</button>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`;
+        body.append('<div class="common-popup-bg-overlay"></div>').css({position: 'relative', overflowY: 'hidden'})
+        body.append(template);
+        // post message to app
+        try {
+            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.toggleMessageHandler) {
+                window.webkit.messageHandlers.toggleMessageHandler.postMessage({
+                    'action': 'ekyc',
+                    'level': level
+                });
+            }
+            if (typeof JSBridge !== 'undefined') {
+                JSBridge.showMessageInNative(JSON.stringify({
+                    'action': 'ekyc',
+                    'level': level
+                }));
+            }
+        } catch (e) {
+            console.log('e:', e);
+        }
+    };
+
+    $(document).ready(function() {
+        w.LINKHAY_EKYC = new linkhayEKYC();
+    })
+})(window, jQuery, document);

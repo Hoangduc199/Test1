@@ -1,0 +1,57 @@
+(function ($) {
+    'use strict';
+
+    window.preForYouLoadListNew = function () {
+        var item = $(this);
+
+        var key = item.attr('similar-news-key');
+
+        item.click(function () {
+            if ($("#pega-icon-more-"+key).hasClass("loading-more-up__icon")){
+                $("#pega-icon-more-"+key).addClass("pega-icon-more-down");
+                $("#pega-icon-more-"+key).removeClass("loading-more-up__icon");
+            }else{
+                $("#pega-icon-more-"+key).addClass("loading-more-up__icon");
+                $("#pega-icon-more-"+key).removeClass("pega-icon-more-down");
+            }
+
+            $("ul.#V2-fy-sublist-news-"+key).animate({
+                height: 'toggle'
+            });
+        });
+    };
+
+    window.preForYouLoadMore = function () {
+        var item = $(this);
+
+        var item_page = 15;
+
+        if ( item.attr('scroll-flag') == 1){
+            $(window).bind('scroll.preForYouLoadMore', function () {
+                if ($(window).scrollTop() + $(window).height() >= item.offset().top - 200) {
+                    if (parseInt(item.attr('scroll-page')) > parseInt(item.attr('lists-link'))/item_page){
+                        $(window).unbind('.preForYouLoadMore');
+                        item.remove();
+                    }
+                    item.attr('scroll-page',parseInt(item.attr('scroll-page'))+1);
+                    item.trigger('click');
+                }
+            });
+        }
+
+        item.click(function () {
+            if (item.attr('scroll-page') > 0){
+                $( "script.data-fy-link" ).each(function( index ) {
+                    if (index < item_page ){
+                        var data =  $("script.data-fy-link[offset-id="+(index + parseInt(item.attr('scroll-page'))*item_page +1)+"]").html();
+                        $("script.data-fy-link[offset-id="+(index + parseInt(item.attr('scroll-page'))*item_page + 1)+"]").remove();
+                        $("#V2-fy-items").append(data);
+                    }
+                });
+            }
+        });
+    };
+
+})(jQuery);
+
+

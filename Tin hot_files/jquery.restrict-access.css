@@ -1,0 +1,124 @@
+.linkhay-popup-container {
+}
+
+.linkhay-popup-container .hidden {
+    display: none !important;
+}
+
+.linkhay-popup-container button {
+    outline: none;
+}
+
+.linkhay-popup-container .modal-layout {
+    /*display: none;*/
+    display: block;
+    position: fixed;
+    z-index: 1000016;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    top: 0;
+    left: 0;
+    overflow: auto;
+    animation: fade-in 0.5s;
+}
+
+.linkhay-popup-container .modal {
+    width: 500px;
+    background: white;
+    left: calc(50% - 250px);
+    top: calc(50% - 142px);
+    position: absolute;
+    border-radius: 10px;
+    display: unset !important;
+    height: auto !important;
+}
+
+.linkhay-popup-container[data-mobile="true"] .modal {
+    width: calc(100% - 20px);
+    left: 10px;
+}
+
+.linkhay-popup-container p {
+    color: #888;
+    font-family: Arial;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 21px;
+}
+
+.linkhay-popup-container .modal-header {
+    height: 60px;
+    display: flex;
+    justify-content: center;
+    background: #f1f1f1;
+    border-radius: 10px 10px 0 0;
+}
+.linkhay-popup-container .modal-header span {
+    display: flex;
+    margin: 18px;
+    font-family: Arial;
+    font-style: normal;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 24px;
+    color: #111;
+    cursor: pointer;
+    align-items: center;
+}
+
+.linkhay-popup-container .modal-body {
+    padding: 10px;
+}
+
+.linkhay-popup-container .modal-footer {
+    height: 60px;
+    display: flex;
+    justify-content: center;
+    background: #f1f1f1;
+    position: sticky;
+    border-radius: 0 0 10px 10px;
+}
+
+.linkhay-popup-container .btn-button {
+    border: 0;
+    border-radius: 6px;
+    margin: 12px 0px;
+    padding: 6px 15px;
+    font-family: Arial;
+    font-weight: bold;
+    font-size: 14px;
+    line-height: 150%;
+    cursor: pointer;
+}
+.linkhay-popup-container .btn-button.btn-default {
+    background: #1B91C8;
+    color: #fff;
+}
+.linkhay-popup-container .btn-button.btn-cancel {
+    background: #fff;
+    margin: 12px;
+}
+
+.linkhay-popup-container .captcha-container {
+    float: none;
+}
+.linkhay-popup-container .captcha-container .captcha-linkhay-image {
+    height: 50px;
+    width: 150px;
+    float: left;
+    margin-top: 10px;
+}
+.linkhay-popup-container .captcha-container .captcha-input {
+    width: 120px;
+    padding: 7px 7px;
+    font-size: 30px;
+    border: 1px solid #ccc;
+    float: left;
+    margin-top: 10px;
+}
+.linkhay-popup-container .modal-body p::after {
+    content: '';
+    clear: both;
+    display: block;
+}

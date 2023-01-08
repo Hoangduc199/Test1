@@ -1,0 +1,552 @@
+(function($, window, document) {
+    var modalContainer;
+    $.fn.linkHayGiveTokenPopup = function(options) {
+        // default options
+        var instance = this;
+        var editor = null;
+        var editingAttachmentId = null;
+        const settings = $.extend({
+            container: 'token-give-popup-container',
+            aspectRatio: {
+                width: 16,
+                height: 9
+            },
+            mobile: false,
+            burnPercent: 0.15,
+            imageDefaultUrl: '//linkhay.mediacdn.vn/thumbs/avatars/Gravatar_30.gif',
+            limitUser: 20,
+            // for old editor
+            element: null,
+            isOldEditor: false,
+            linkId: null
+        }, options);
+
+        var element = $(this);
+
+        var modalParams;
+
+        var response = {
+            user: null,
+            token: 0,
+            message: "",
+            form_valid: 0,
+            done_captcha: 0
+        };
+
+        var initTemplate = function() {
+            const templates =
+                `
+                <div id="${settings.container}" class="token-give-popup">
+                    <div class="modal-layout hidden">
+                        <div class="modal">
+                            <div class="modal-header">
+                                <a class="tab layer-1" data-tag="token" id="tab-token-header">
+                                    <svg width="15" height="16" viewBox="0 0 15 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M12.4671 9.006C11.4741 10 10.9571 10.322 9.82413 11.03C9.00813 11.539 7.89113 12.237 6.05613 13.512C5.96613 13.574 5.86313 13.605 5.76013 13.605C5.62613 13.605 5.49313 13.553 5.39313 13.452L2.04813 10.107C1.87113 9.93 1.84613 9.651 1.98913 9.445C3.26413 7.609 3.96213 6.492 4.47113 5.676C5.17913 4.543 5.50113 4.026 6.49413 3.033C8.68213 0.845 12.8021 0.533 14.4711 0.5C14.4751 0.5 14.4781 0.5 14.4821 0.5C14.6191 0.5 14.7511 0.554 14.8481 0.652C14.9481 0.751 15.0031 0.887 15.0001 1.028C14.9691 2.697 14.6591 6.814 12.4671 9.006ZM10.9751 4.524C10.3021 3.851 9.21113 3.851 8.53713 4.525C7.86413 5.198 7.86413 6.29 8.53713 6.963C9.21113 7.637 10.3021 7.637 10.9751 6.963C11.6491 6.29 11.6491 5.198 10.9751 4.524ZM1.31813 9.158L0.0671311 7.907C0.0671311 7.907 1.88413 5.549 3.77913 5.381C3.28613 6.17 2.60913 7.236 1.45913 8.891C1.40113 8.976 1.35413 9.066 1.31813 9.158ZM1.08113 11.578C1.30713 11.285 1.57313 11.025 1.87913 10.82L2.01613 10.957C1.93713 11.127 1.85813 11.296 1.79513 11.474C1.69413 11.759 1.59913 12.044 1.52513 12.338C1.37213 12.946 1.27713 13.568 1.22313 14.193C1.22013 14.225 1.21813 14.257 1.21513 14.289C1.47513 14.269 1.73513 14.239 1.99213 14.203C2.60513 14.119 3.21013 13.986 3.79713 13.79C4.01713 13.717 4.22813 13.624 4.44213 13.538C4.47813 13.522 4.51313 13.506 4.54813 13.49L4.68213 13.623C4.12813 14.45 3.18413 14.972 2.24913 15.251C1.73713 15.403 1.19413 15.496 0.660131 15.5C0.572131 15.5 0.487131 15.5 0.402131 15.472C0.301131 15.44 0.210131 15.379 0.141131 15.299C0.0711311 15.218 0.0241311 15.117 0.00813115 15.011C-0.00486885 14.929 0.00113115 14.845 0.00313115 14.762C0.0211311 14.174 0.133131 13.583 0.321131 13.026C0.496131 12.506 0.747131 12.013 1.08113 11.578ZM10.1191 11.722C9.95113 13.618 7.59313 15.434 7.59313 15.434L6.34313 14.184C6.43613 14.147 6.52613 14.1 6.60913 14.042C8.26513 12.891 9.33113 12.215 10.1191 11.722Z" fill="#1095EA"/>
+                                    </svg>
+
+                                    <span>Đính kèm token</span>
+                                </a>
+                            </div>
+                            <div class="modal-body">
+                                <div class="tab-content" id="tab-token">
+                                    <section>
+                                        <p class="sample-grey-text mb-10px">Chuyển token cho thành viên</p>
+                                        <div class="form-item mb-20px" id="form-pick-user">
+                                            <input id="input-username" autocomplete="off" type="text" placeholder="Nhập tên thành viên bạn muốn chuyển" />
+                                            <div id="list-username">
+                                                <ul></ul>
+                                            </div>
+                                            <div id="chosen-username" class="hidden">
+                                                <img src="" alt="" onerror="this.src='${settings.imageDefaultUrl}';"/>
+                                                <span></span>
+                                                <svg width="13" height="12" viewBox="0 0 13 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <g clip-path="url(#clip0)">
+                                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M12.2487 0.251051C12.5835 0.585786 12.5835 1.1285 12.2487 1.46323L1.96321 11.7489C1.62848 12.0837 1.08578 12.0837 0.751047 11.7489C0.416318 11.4142 0.416318 10.8715 0.751047 10.5368L11.0366 0.251051C11.3713 -0.0836838 11.914 -0.0836838 12.2487 0.251051Z" fill="#AAAAAA"/>
+                                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M0.751047 0.251051C1.08578 -0.0836838 1.62848 -0.0836838 1.96321 0.251051L12.2487 10.5368C12.5835 10.8715 12.5835 11.4142 12.2487 11.7489C11.914 12.0837 11.3713 12.0837 11.0366 11.7489L0.751047 1.46323C0.416318 1.1285 0.416318 0.585786 0.751047 0.251051Z" fill="#AAAAAA"/>
+                                                    </g>
+                                                    <defs>
+                                                    <clipPath id="clip0">
+                                                    <rect width="12" height="12" fill="white" transform="translate(0.5)"/>
+                                                    </clipPath>
+                                                    </defs>
+                                                </svg>
+
+                                            </div>
+                                        </div>
+                                        <div class="border-dashed-bottom"></div>
+                                    </section>
+                                    <section>
+                                        <p class="sample-grey-text mb-5px">Token khả dụng</p>
+                                        <p class="sample-black-text mb-20px" id="token-balance-display">0</p>
+                                        <p class="sample-grey-text mb-15px">Nhập số token bạn muốn chuyển</p>
+                                        <div class="form-item mb-15px">
+                                            <input type="text" id="number-give-token" autocomplete="off" placeholder="50,000 token" />
+                                        </div>
+                                        <p class="sample-grey-text mb-15px">
+                                            Đốt bỏ <span class="burn-token-percent">15</span>% số token tặng. Bạn sẽ sử dụng 
+                                            <strong id="burn-token-display">0</strong> 
+                                            token để tiến hành
+                                        </p>
+                                        <div class="google-recaptcha mb-15px">
+                                            <div id="linkhay-comment-token-google-recaptcha" data-sitekey="6LcUoowUAAAAAHordJkhgXCGRbbdCZ94xvHMjvfZ" style="display: inline-block;"></div>
+                                        </div>
+                                        <p class="sample-grey-text mb-20px">*Token sẽ được chuyển khi bạn gửi bình luận</p>
+
+                                    </section>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn-cancel"> Hủy bỏ </button>
+                                <button class="btn-insert disable" id="btn-insert" disabled="disable"> Đính kèm </button>
+                                <button class="btn-quick-comment disable hidden" id="btn-quick-comment" disabled="disable"> Bình luận ngay </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            if ($('#' + settings.container).length <= 0) {
+                $(element).append(templates);
+
+                modalContainer = $('#' + settings.container);
+                // setupActions();
+            }
+
+        };
+
+        var setupActions = function() {
+            //cancel modal:
+            modalContainer.find('.btn-cancel').off('click').on('click', closeQuillModal);
+            //submit:
+            modalContainer.find('.btn-insert').off('click').on('click', submitForm);
+
+            modalContainer.find('#list-username li').off('click').on('click', pickUser);
+
+            modalContainer.find('#chosen-username svg').off('click').on('click', cancelUser);
+
+            $('#number-give-token').off('keyup').on('keyup', instance.giveTokenChanged);
+
+            $('#input-username').off('keyup')
+                                .off('focus')
+                                .on('keyup', filterUser)
+                                .on('focus', filterUser);
+            //$(document).on('click', clickDocument);
+
+        };
+
+        var removeActions = function() {
+            //turn off events (to prevent duplicate events)
+            modalContainer.find('.btn-cancel').off('click', closeQuillModal);
+
+            modalContainer.find('.btn-insert').off('click', submitForm);
+
+            modalContainer.find('#list-username li').off('click', pickUser);
+
+            modalContainer.find('#chosen-username svg').off('click', cancelUser);
+
+            $('#input-username').off('keyup', filterUser)
+                                .off('focus', filterUser);
+
+            //$(document).off('click', clickDocument);
+
+        };
+
+        this.showModal = function(params) {
+            modalParams = params;
+            if (typeof(params) === 'undefined' || typeof(params.defaultUser) === 'undefined'
+                || typeof(params.listUser) === 'undefined' || typeof(params.tokenBalance) === 'undefined') {
+                return;
+            }
+
+
+            let linkId = settings.isOldEditor === true ? settings.linkId : editor.getLinkId();
+
+            let users = typeof(window.LINKHAY_MENTION_USERS['users-friend']) !== 'undefined' ? window.LINKHAY_MENTION_USERS['users-friend'] : [];
+            let usersComment =  typeof(window.LINKHAY_MENTION_USERS['users-comment-' + linkId]) !== 'undefined' ? window.LINKHAY_MENTION_USERS['users-comment-' + linkId] : [];
+
+            if (settings.isOldEditor === true) {
+                settings.element = params.element;
+                users = params.listUser;
+
+                let commentForm = $(settings.element).parents('.V2-comment-frm');
+                let isMobile = commentForm.data('mobile');
+                if (isMobile == true) {
+                    $('#token-give-popup-container').attr('data-mobile', true);
+                } else {
+                    $('#token-give-popup-container').removeAttr('data-mobile');
+                }
+                $('.input-frm textarea', commentForm).blur();
+            }
+            setListUser(users, usersComment);
+            toggleModal();
+            setUser(params.defaultUser);
+
+            if (typeof params.tokenComment !== 'undefined' && params.tokenComment !== null) {
+                $('#number-give-token').val(params.tokenComment.amount);
+                instance.validateForm();
+            } else {
+                $('#number-give-token').val('');
+            }
+
+            setBalance(params.tokenBalance);
+            //$('#number-give-token').focus();
+            try {
+                window.grecaptcha.render('linkhay-comment-token-google-recaptcha');
+            } catch (e) {}
+        };
+
+        this.initialize = function() {
+            initTemplate();
+            return this;
+        };
+
+        var removeOutsideAttachment = function(e) {
+
+            let attachmentContainer = $(e.target).closest('.give-token-embed');
+            let id = attachmentContainer.attr('id');
+            if (settings.isOldEditor === true) {
+                let commentForm = $(e.target).parents('.V2-comment-frm');
+                let act = commentForm.attr('act');
+                let linkId = commentForm.attr('link-id');
+                let parentId = commentForm.attr('parent-id');
+                if (act === 'new') {
+                    linkhayTokenComment['new-' + linkId] = null;
+                } else {
+                    linkhayTokenComment['reply-' + parentId] = null;
+                }
+                $('.give-token-embed#' + id).remove();
+            } else {
+                if (attachmentContainer.length > 0) {
+                    // instance.updateAttachmentStatus(id, 0);
+                    editor.deleteAttachmentbyId(id);
+                    $('.give-token-embed#' + id).remove();
+                }
+
+                editor.setTokenAttachment(null);
+            }
+            $('#burn-token-display').html('0');
+            this.setToken(0);
+            this.validateForm();
+        }
+
+        this.setEditor = function(e) {
+            editor = e;
+            return this;
+        };
+
+        this.setToken = function(token) {
+            response.token = parseInt(token.toString());
+            if (response.token == 0) {
+                response.form_valid = 0;
+            }
+        };
+
+        var clickDocument = function(e) {
+            var container = $("#list-username");
+            var container2 = $('#form-pick-user');
+            var container3 = $('.token-give-popup .modal');
+
+            // if the target of the click isn't the container nor a descendant of the container
+            if (!container.is(e.target) && container.has(e.target).length === 0
+                && !container2.is(e.target) && container2.has(e.target).length === 0) {
+                hideListUser();
+            }
+
+            if (!container3.is(e.target) && container3.has(e.target).length === 0) {
+                closeQuillModal();
+            }
+        }
+
+        var hideListUser = function() {
+            $('#list-username').addClass('hidden');
+        }
+
+        var filterUser = function() {
+            $('#list-username').removeClass('hidden');
+            let username = $('#input-username').val();
+            $('#list-username').find('li').addClass('hidden');
+            let result = modalParams.listUser.filter(function(item) {
+                if (item.name.includes(username.toLowerCase())) {
+                    return item;
+                }
+            });
+
+            let limit = 20;
+            let number = 0;
+            for (let i in result) {
+                if (number === limit) {
+                    break;
+                }
+                if (typeof result[i].id === 'undefined') {
+                    continue;
+                }
+
+                let li = $('<li />');
+                li.data('username', result[i].name)
+                    .data('userid', result[i].id)
+                    .data('avatar', result[i].avatar);
+                li.html(`<img src="${result[i].avatar}" onerror="this.src='${result.imageDefaultUrl}';" /><span>${result[i].name}</span>`);
+                $(li).on('click', pickUser);
+                $('#list-username').find('ul').append(li);
+                number++;
+            }
+        };
+
+        this.giveTokenChanged = function() {
+            let token = $('#number-give-token').val();
+            token = token.toString().replace(/[^0-9]/ig, '');
+            let tokenNumber = parseInt(token);
+            response.token = token;
+            instance.validateForm();
+            // settingsburnPercent
+            $('#burn-token-display').text(addCommas(Math.floor(tokenNumber + (tokenNumber * settings.burnPercent))));
+
+            $(this).val(addCommas(token));
+        };
+
+        this.validateForm = function() {
+            response.form_valid = 1;
+            let token = parseInt(response.token);
+            let balance = parseInt($('.user-token-available').text().trim().replace(/[^0-9]/ig, ''));
+            let tokenBurn = parseInt($('#burn-token-display').text().trim().replace(/[^0-9]/ig, ''));
+            if (isNaN(token) || token <= 0 || token > balance || balance < tokenBurn) {
+                response.form_valid = 0;
+            }
+            if (response.user == null || (typeof(response.user) == 'object' && response.user.name == null)) {
+                response.form_valid = 0;
+            }
+            if (response.form_valid == 1) {
+                $('.btn-insert').attr("disabled", false).removeClass('disable');
+            } else {
+                $('.btn-insert').attr("disabled", true).addClass('disable');
+            }
+        };
+
+        var pickUser = function(e) {
+            let elementUser = $(e.currentTarget);
+            let user = {
+                'name' : elementUser.data('username'),
+                'id' : elementUser.data('userid'),
+                'avatar' : elementUser.data('avatar'),
+            };
+            setUser(user);
+            toggleUserSelectBox('hide');
+            instance.validateForm();
+        };
+
+        var setUser = function(user) {
+            if (null == user || (typeof(user.name) == 'undefined' || user.name == null || user.name == '')) {
+                cancelUser();
+                return;
+            }
+            $('#list-username').find('li').removeClass('hidden');
+            if (typeof(user.name) == 'undefined') {
+                return;
+            }
+            $('#chosen-username').find('span').text(user.name);
+            $('#chosen-username').find('img').attr('src', user.avatar);
+            response.user = user;
+        };
+
+        var setBalance = function(balance) {
+            if (typeof(balance) == 'undefined') {
+                return;
+            }
+            let balanceString = addCommas(balance);
+            $('#token-balance-display').text(balanceString);
+
+            //reconfig option of inputmask
+            //$("#number-give-token").inputmask('option', {max: balance});
+        };
+
+        var setListUser = function(listUser, usersComment) {
+            if (typeof(listUser) !== 'object') {
+                return;
+            }
+            usersComment = typeof(usersComment) == 'undefined' ? [] : usersComment;
+
+            $('#list-username').find('ul').empty();
+
+            let users = [];
+            let numberUser = 0;
+
+            for (let i=0; i < usersComment.length; i++) {
+                if (numberUser == settings.limitUser) {
+                    continue;
+                }
+                let listElement = `<li data-username="${usersComment[i].name}" data-userid="${usersComment[i].id}"
+                                        data-avatar="${usersComment[i].avatar}">
+                                        <img src="${usersComment[i].avatar}" onerror="this.src='${settings.imageDefaultUrl}';" />
+                                        <span>${usersComment[i].name}</span>
+                                    </li>`;
+                $('#list-username').find('ul').append(listElement);
+                users.push(usersComment[i].name);
+                numberUser++;
+            }
+
+            for (let key=0; key < listUser.length; key++) {
+                if (users.indexOf(listUser[key].name) !== -1) {
+                    continue;
+                }
+                if (numberUser == settings.limitUser) {
+                    continue;
+                }
+                let listElement = `<li data-username="${listUser[key].name}" data-userid="${listUser[key].id}"
+                                        data-avatar="${listUser[key].avatar}">
+                                        <img src="${listUser[key].avatar}" onerror="this.src='${settings.imageDefaultUrl}';" />
+                                        <span>${listUser[key].name}</span>
+                                    </li>`;
+                $('#list-username').find('ul').append(listElement);
+                numberUser++;
+            }
+            modalParams.listUser = listUser;
+        };
+
+        var cancelUser = function() {
+            response.user = null;
+            instance.validateForm();
+            toggleUserSelectBox('show');
+            $('#input-username').focus();
+        };
+
+        var toggleUserSelectBox = function(state = 'show') {
+            if (state == 'show') {
+                $('#input-username').val(null).removeClass('hidden');
+                $('#list-username').removeClass('hidden');
+                $('#chosen-username').addClass('hidden');
+            } else {
+                $('#input-username').val(null).addClass('hidden');
+                $('#list-username').addClass('hidden');
+                $('#chosen-username').removeClass('hidden');
+            }
+
+        };
+
+        var toggleModal = function(type) {
+            toggleUserSelectBox('hide');
+            setupActions();
+
+            modalContainer.find('.modal-layout').removeClass('hidden');
+            document.body.style.overflow = "hidden";
+        };
+
+        var closeQuillModal = function(e) {
+            if (typeof e !== 'undefined') {
+                e.preventDefault();
+            }
+            $('#number-give-token').val(null);
+            removeActions();
+
+            document.body.style.overflow = "";
+            modalContainer.find('.modal-layout').addClass('hidden');
+            $('#list-username').find('li').removeClass('hidden');
+        };
+
+        var submitForm = function (e) {
+            try {
+                if (grecaptcha.getResponse() == '') {
+                    alert('Bạn chưa nhập captcha!');
+                    return false;
+                }
+            } catch (e) {
+
+            }
+
+            insertToEditor();
+
+            $(e.target).attr("disabled", true);
+            closeQuillModal();
+
+        }
+
+        var insertToEditor = function() {
+            const id = new Date().getTime();
+            let tokenAmount = addCommas(response.token);
+            let messageRender = `<div class="give-token-embed" id='${id}'>
+                <div class="no-select token-attachment-edit">
+                    <svg width="19" height="22" viewBox="0 0 19 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M14.5856 12.7813C12.6495 12.7813 11.0231 12.0842 10.197 11.0774V11.7486C10.197 12.0842 10.3261 12.4198 10.5068 12.7296C10.1712 12.6522 9.8356 12.6005 9.5 12.6005C9.1644 12.6005 8.80299 12.6522 8.46739 12.7296C8.67391 12.4198 8.77717 12.1101 8.77717 11.7486V11.0774C7.95109 12.1101 6.32473 12.7813 4.38859 12.7813C2.45245 12.7813 0.826087 12.0842 0 11.0774V11.7486C0 13.1943 1.96196 14.3818 4.38859 14.3818C5.00815 14.3818 5.6019 14.3044 6.14402 14.1753C5.98913 14.3818 5.83424 14.5883 5.70516 14.8207C5.29212 14.8981 4.85326 14.9239 4.38859 14.9239C2.45245 14.9239 0.826087 14.2269 0 13.2201V13.8397C0 15.2853 1.96196 16.4728 4.38859 16.4728C4.64674 16.4728 4.90489 16.447 5.16304 16.4212C5.13723 16.6019 5.13723 16.7568 5.13723 16.9375C5.13723 16.9375 5.13723 16.9375 5.13723 16.9633C4.90489 16.9891 4.64674 16.9891 4.38859 16.9891C2.45245 16.9891 0.826087 16.2921 0 15.2853V15.9565C0 17.4022 1.96196 18.5897 4.38859 18.5897C4.75 18.5897 5.0856 18.5639 5.39538 18.5122C6.06658 20.1644 7.6413 21.3261 9.52581 21.3261C11.4103 21.3261 12.9851 20.1644 13.6046 18.5122C13.9402 18.5639 14.25 18.5897 14.6114 18.5897C17.038 18.5897 19 17.4022 19 15.9565V15.2853C18.1739 16.3179 16.5476 16.9891 14.6114 16.9891C14.3533 16.9891 14.1209 16.9891 13.8886 16.9633C13.8886 16.9633 13.8886 16.9633 13.8886 16.9375C13.8886 16.7568 13.8886 16.5761 13.8628 16.4212C14.1209 16.447 14.3533 16.4728 14.6114 16.4728C17.038 16.4728 19 15.2853 19 13.8397V13.1685C18.1739 14.2011 16.5476 14.8723 14.6114 14.8723C14.1467 14.8723 13.7337 14.8465 13.3207 14.769C13.1916 14.5367 13.0367 14.3302 12.8818 14.1236C13.4239 14.2527 13.9918 14.3302 14.6114 14.3302C17.038 14.3302 19 13.1427 19 11.697V11.0258C18.1481 12.1101 16.5476 12.7813 14.5856 12.7813ZM13.1658 16.9633C13.1658 17.9443 12.7785 18.8478 12.1073 19.5448C11.4103 20.2418 10.5068 20.6033 9.52581 20.6033C8.54484 20.6033 7.6413 20.216 6.94429 19.5448C6.24728 18.8478 5.88587 17.9443 5.88587 16.9633C5.88587 15.9823 6.2731 15.0788 6.94429 14.3818C7.6413 13.6848 8.54484 13.3234 9.52581 13.3234C10.5068 13.3234 11.4103 13.7106 12.1073 14.3818C12.7785 15.0788 13.1658 15.9823 13.1658 16.9633Z" fill="#1095EA"/>
+                        <path d="M14.5854 10.6902C12.6492 10.6902 11.0229 9.99321 10.1968 8.98642V9.65761C10.1968 11.1033 12.1587 12.2908 14.5854 12.2908C17.012 12.2908 18.9739 11.1033 18.9739 9.65761V8.98642C18.1479 9.99321 16.5473 10.6902 14.5854 10.6902Z" fill="#1095EA"/>
+                        <path d="M14.5854 8.57337C12.6492 8.57337 11.0229 7.87636 10.1968 6.86957V7.54076C10.1968 8.98642 12.1587 10.1739 14.5854 10.1739C17.012 10.1739 18.9739 8.98642 18.9739 7.54076V6.86957C18.1479 7.90218 16.5473 8.57337 14.5854 8.57337Z" fill="#1095EA"/>
+                        <path d="M14.5854 6.48234C12.6492 6.48234 11.0229 5.78533 10.1968 4.77853V5.44973C10.1968 6.89538 12.1587 8.08288 14.5854 8.08288C17.012 8.08288 18.9739 6.89538 18.9739 5.44973V4.77853C18.1479 5.78533 16.5473 6.48234 14.5854 6.48234Z" fill="#1095EA"/>
+                        <path d="M14.5854 0.67392C12.1587 0.67392 10.1968 1.86142 10.1968 3.30707C10.1968 4.75272 12.1587 5.94022 14.5854 5.94022C17.012 5.94022 18.9739 4.75272 18.9739 3.30707C18.9739 1.86142 17.012 0.67392 14.5854 0.67392Z" fill="#1095EA"/>
+                        <path d="M4.41447 12.2649C6.8411 12.2649 8.80305 11.0774 8.80305 9.63179C8.80305 8.18614 6.8411 6.99864 4.41447 6.99864C1.98784 6.99864 0.0258789 8.18614 0.0258789 9.63179C0.0258789 11.0774 1.98784 12.2649 4.41447 12.2649Z" fill="#1095EA"/>
+                        <path d="M7 17C7 16.7239 7.22386 16.5 7.5 16.5H11.5C11.7761 16.5 12 16.7239 12 17C12 17.2761 11.7761 17.5 11.5 17.5H7.5C7.22386 17.5 7 17.2761 7 17Z" fill="#1095EA"/>
+                        <path d="M9.5 14.5C9.7646 14.5 9.97909 14.7145 9.97909 14.9791L9.97909 19.0209C9.97909 19.2855 9.7646 19.5 9.5 19.5C9.2354 19.5 9.02091 19.2855 9.02091 19.0209L9.02091 14.9791C9.02091 14.7145 9.2354 14.5 9.5 14.5Z" fill="#1095EA"/>
+                    </svg>
+
+                    <span>
+                        <strong class="token-amount">${tokenAmount}</strong> token cho <span class="token-username">${response.user.name}</span>
+                    </span>
+                    <svg class="remove-token-embed" width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <g clip-path="url(#clip0)">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M9.79062 0.209209C10.0696 0.488155 10.0696 0.940416 9.79062 1.21936L1.21934 9.79079C0.9404 10.0697 0.488147 10.0697 0.209206 9.79079C-0.0697353 9.51184 -0.0697353 9.05958 0.209206 8.78064L8.78049 0.209209C9.05943 -0.0697365 9.51168 -0.0697365 9.79062 0.209209Z" fill="#AAAAAA"/>
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M0.209206 0.209209C0.488147 -0.0697365 0.9404 -0.0697365 1.21934 0.209209L9.79062 8.78064C10.0696 9.05958 10.0696 9.51184 9.79062 9.79079C9.51168 10.0697 9.05943 10.0697 8.78049 9.79079L0.209206 1.21936C-0.0697353 0.940416 -0.0697353 0.488155 0.209206 0.209209Z" fill="#AAAAAA"/>
+                        </g>
+                        <defs>
+                        <clipPath id="clip0">
+                        <rect width="10" height="10" fill="white"/>
+                        </clipPath>
+                        </defs>
+                    </svg>
+
+                </div>
+            </div>`;
+
+            if (settings.isOldEditor === true) {
+                let element = $(settings.element);
+                let commentForm = $(element).parents('.V2-comment-frm');
+                let footer = $(commentForm).find('.footer');
+
+                $(footer).find('.give-token-embed').remove();
+                $(footer).append(messageRender);
+
+                let act = commentForm.attr('act');
+                let parentId = commentForm.attr('parent-id');
+                if (act == 'new') {
+                    linkhayTokenComment['new-' + settings.linkId] = {
+                        amount : response.token,
+                        username : response.user.name
+                    }
+                } else {
+                    linkhayTokenComment['reply-' + parentId] = {
+                        amount : response.token,
+                        username : response.user.name
+                    }
+                }
+            } else {
+                $("#" + settings.attachmentId + '-items').after(messageRender);
+
+                // editor.mention({
+                //     username: response.user.name
+                // });
+
+                let tokenAttach = {
+                    type : 'token',
+                    id : id,
+                    amount : response.token,
+                    username : response.user.name,
+                    message : ''
+                };
+                editor.setTokenAttachment(tokenAttach);
+            }
+
+            $('.remove-token-embed').on('click', removeOutsideAttachment);
+        }
+
+        var addCommas = function(intNumber){
+            intNumber += '';
+            intNumber = intNumber.replace(/[^0-9]/ig, '');
+            x = intNumber.split('.');
+            x1 = x[0];
+            x2 = x.length > 1 ? '.' + x[1] : '';
+            var rgx = /(\d+)(\d{3})/;
+            while (rgx.test(x1)) {
+                x1 = x1.replace(rgx, '$1' + ',' + '$2');
+            }
+            return x1 + x2;
+        };
+
+        return this.initialize();
+    };
+})(jQuery, window, document);

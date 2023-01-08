@@ -1,0 +1,429 @@
+(function($){
+    var channelBox = $('.top-channel-box');
+    var channelBoxToggler = $('#channel-box-toggle');
+    var _outOfChannelBox = true;	
+    var _channelBoxCloseTimer = null;
+	
+    channelBoxToggler.parent().hover(function(){
+        _outOfChannelBox = false;
+    }, function(){
+        _outOfChannelBox = true;
+    });
+		
+    function _hideChannelBox() {
+        if(!_outOfChannelBox) {
+            return;
+        }
+		
+        channelBox.removeClass('active');
+        $(document).unbind('mousedown', _hideChannelBox);
+    }
+	
+    function channelResetScroller(element){
+        var scrollerInst = $.oscScroller.getInstance(element);
+			
+        if(scrollerInst) {
+            $.oscScroller.reset(scrollerInst);
+            return;
+        }
+    }
+    $('.channel-search-input').focus(function() {
+        if (this.value == this.defaultValue){
+        this.value = '';
+        }
+
+        if(this.value != this.defaultValue){
+                this.select();
+        }
+        $(this).css({'border-color': '#656565', 'color': '#333'});
+        var html = '<img class="cute-ico isearch-focus" alt="Tìm Kiếm" src="/templates/images/null.png">';
+        $(".channel-search-btn").html(html);
+        $(".channel-search-btn").css('border','1px solid #656565');
+    }).blur(function() {
+        if ($j.trim(this.value) == ''){
+        this.value = (this.defaultValue ? this.defaultValue : '');
+        }
+        $(this).css({'border-color':'#999', 'color': '#999'});
+        var html = '<img class="cute-ico isearch" alt="Tìm Kiếm" src="/templates/images/null.png">';
+        $(".channel-search-btn").html(html);
+        $(".channel-search-btn").css('border','1px solid #999');
+    }).keyup(autocomplates_channel);
+    
+    function autocomplates_channel() {
+        $("#top-channel-list").html('<img src="'+my_base_url + my_pligg_base+'/templates/images/loading/fb_loader.gif"/>'); 
+        //$(".channel-link > a").removeClass('active');
+        var channel_name = $("input[name='channel-name']").val();
+        if(channel_name == '') {
+            $("#top-channel-list").html('Vui lòng gõ từ khóa để tìm kiếm !'); 
+            return;
+        } else {
+           $.post(my_base_url + my_pligg_base+ '/actions/channel/headerBox/search.php', {channel_name:channel_name,page:1}, function(result){
+                eval("var result="+result);
+                    if(result.code == 'OK') {
+                        var htmlf = '<div class="list_sytem oscScroller osc-scroller" id="channel_list_search"><ul id="list-search-channel" rel="1">';
+                            htmlf += result.content;
+                            htmlf += '</ul><div class="clear"></div></div>';
+                        $("#top-channel-list").html(htmlf);
+                        $(".channel-search-btn").css('border','1px solid #656565');
+
+                    }
+                $('#channel_list_search').osc_scroller({
+                    callback : {
+                        inBottom : function(params) {                
+                            if(NEW_CHANNEL_LOADING || NEW_CHANNEL_ENDED) {
+                            return;
+                            }
+                            var page = parseInt($('#list-search-channel').attr('rel')) + 1;
+                            if(!page) page = 1;
+
+                            NEW_CHANNEL_LOADING = true;
+                            $('.loading-channel').show();
+                            $.post(my_base_url + my_pligg_base+ '/actions/channel/headerBox/search.php', {channel_name:channel_name,page:page}, function(result){
+                                eval("var result="+result);
+                                if(result.code == 'OK') {
+                                    $('#list-search-channel').attr('rel',page);
+                                    $("#list-search-channel").append(result.content);
+                                    $('.loading-channel').hide();
+                                    params.inst.reset();
+                                } else {
+                                    NEW_CHANNEL_ENDED = true;
+                                }
+                                NEW_CHANNEL_LOADING = false;
+                            });
+                        }
+                    }
+                }); 
+            });
+        }
+    }
+	
+    channelBoxToggler.click(function(){
+        FollowChannel();       
+        
+        channelBox.toggleClass('active');
+		
+        if(channelBox.hasClass('active')) {
+            $(document).bind('mousedown', _hideChannelBox);
+        } else {
+            $(document).unbind('mousedown', _hideChannelBox);			
+        }
+    });
+
+    var NEW_CHANNEL_LOADING = false;
+    var NEW_CHANNEL_ENDED = false;
+    
+    initSystemChannel();
+    function initSystemChannel(){
+        $(".system-channel").click(function(){
+            $("#top-channel-list").html('<img src="'+my_base_url + my_pligg_base+'/templates/images/loading/fb_loader.gif"/>');
+            //$(".channel-link > a").removeClass('active');
+            //$(".system-channel").addClass('active');
+            $.post(my_base_url + my_pligg_base+ '/actions/channel/headerBox/loadMore.php', {type:'system',page:1}, function(result){
+                eval("var result="+result);
+                    if(result.code == 'OK') {
+                        $("#top-channel-list").html(result.content);
+                        $('#channel_list_sytem').osc_scroller();
+                    }
+            });
+        });
+    }
+    
+    initFollowChannel();
+    function initFollowChannel() {
+        $(".follow-channel").click(function(){
+            FollowChannel();
+        });
+    }
+    
+    function FollowChannel() {
+        $("#top-channel-list").html('<img src="'+my_base_url + my_pligg_base+'/templates/images/loading/fb_loader.gif"/>');
+        //$(".channel-link > a").removeClass('active');
+        //$(".follow-channel").addClass('active');
+        $.post(my_base_url + my_pligg_base+ '/actions/channel/headerBox/loadMore.php', {type:'follow',page:1}, function(result){
+            eval("var result="+result);
+                if(result.code == 'OK') {
+                    var htmlf = '<div class="list_follow oscScroller osc-scroller" id="channel_list_follow"><ul id="list-follow-channel" rel="1">';
+                        htmlf += result.content;
+                        htmlf += '</ul><div class="clear"></div></div>';
+                    $("#top-channel-list").html(htmlf);
+                }
+            $('#channel_list_follow').osc_scroller({
+                callback : {
+                    inBottom : function(params) {                
+                        if(NEW_CHANNEL_LOADING || NEW_CHANNEL_ENDED) {
+                        return;
+                        }
+                        var page = parseInt($('#list-follow-channel').attr('rel')) + 1;
+                        if(!page) page = 1;
+
+                        NEW_CHANNEL_LOADING = true;
+                        $('.loading-channel').show();
+                        $.post(my_base_url + my_pligg_base+ '/actions/channel/headerBox/loadMore.php', {type:'follow',page:page}, function(result){
+                            eval("var result="+result);
+                            if(result.code == 'OK') {
+                                $('#list-follow-channel').attr('rel',page);
+                                $("#list-follow-channel").append(result.content);
+                                $('.loading-channel').hide();
+                                params.inst.reset();
+                            } else {
+                                NEW_CHANNEL_ENDED = true;
+                            }
+                            NEW_CHANNEL_LOADING = false;
+                        });
+                    }
+                }
+            }); 
+        });
+    }
+    
+    channelSearchHeadbox();
+    function channelSearchHeadbox() {
+        $(".channel-search-btn").click(function(){
+            $("#top-channel-list").html('<img src="'+my_base_url + my_pligg_base+'/templates/images/loading/fb_loader.gif"/>');
+            //$(".channel-link > a").removeClass('active');
+            var channel_name = $("input[name='channel-name']").val();
+            
+            $.post(my_base_url + my_pligg_base+ '/actions/channel/headerBox/search.php', {channel_name:channel_name,page:1}, function(result){
+               eval("var result="+result);
+                    if(result.code == 'OK') {
+                        var htmlf = '<div class="list_sytem oscScroller osc-scroller" id="channel_list_search"><ul id="list-search-channel" rel="1">';
+                            htmlf += result.content;
+                            htmlf += '</ul><div class="clear"></div></div>';
+                        $("#top-channel-list").html(htmlf);
+                        $(".channel-search-btn").css('border','1px solid #656565');
+                        
+                    }
+               $('#channel_list_search').osc_scroller({
+                    callback : {
+                        inBottom : function(params) {                
+                            if(NEW_CHANNEL_LOADING || NEW_CHANNEL_ENDED) {
+                            return;
+                            }
+                            var page = parseInt($('#list-search-channel').attr('rel')) + 1;
+                            if(!page) page = 1;
+
+                            NEW_CHANNEL_LOADING = true;
+                            $('.loading-channel').show();
+                            $.post(my_base_url + my_pligg_base+ '/actions/channel/headerBox/search.php', {channel_name:channel_name,page:page}, function(result){
+                                eval("var result="+result);
+                                if(result.code == 'OK') {
+                                    $('#list-search-channel').attr('rel',page);
+                                    $("#list-search-channel").append(result.content);
+                                    $('.loading-channel').hide();
+                                    params.inst.reset();
+                                } else {
+                                    NEW_CHANNEL_ENDED = true;
+                                }
+                                NEW_CHANNEL_LOADING = false;
+                            });
+                        }
+                    }
+                }); 
+            });
+        });
+    }
+    /* ManhTienpt: End new */
+    
+    
+    //channelBoxToggler.hover(function(){clearTimeout(_channelBoxCloseTimer); channelBox.addClass('active');}, function(){_channelBoxCloseTimer = setTimeout(function(){channelBox.removeClass('active');}, 200)});	        
+    function load_more_channel_click() {
+        var btn = $(this);
+		
+        btn.html('<img src="http://static.ak.fbcdn.net/rsrc.php/v1/yb/r/GsNJNwuI-UM.gif" />');
+		
+        load_more_channel(parseInt(btn.attr('page')) + 1, btn.attr('type'), this.parentNode, function(){
+            btn.remove();
+        });
+    }
+    function removechannel(){
+        alert('ko');
+    }
+    function load_more_channel(page, type, list, callback) {
+        var listObj = $(list);
+					
+        if(listObj.attr('loading') == 1) {
+            return;
+        }
+		
+        listObj.attr('loading', 1);
+        $.ajax({
+            type: "POST",
+            url: my_base_url + my_pligg_base + "/actions/channel/headerBox/loadMore.php",
+            data: {
+                type : type, 
+                page : page
+            },
+            success: function(result){
+                listObj.attr('loading', 0);
+				
+                eval('var result = ' + result);
+					
+                if(result.code == 'ERROR') {
+                    alert(result.message);
+                } else {
+                    if(typeof callback == 'function') {
+                        callback();
+                        if (type != 'addchannel'){
+                            jQuery('#channel-tab-content-'+type).oscScroller({
+                                callback : {
+                                    inBottom : function(params) {     
+                                        $('.channel-load-more', list).click();
+                                    }
+                                }
+                            });
+                        }
+                    }
+					
+                    listObj.html(listObj.html() + result.content);
+                    $('.channel-load-more', list).click(load_more_channel_click);
+                    var contentId = 'channel-tab-content-' + type;
+          
+                    if (type != 'addchannel'){
+                        scrollerInst = $.oscScroller.getInstance(contentId);
+                        if(scrollerInst) {
+                            $.oscScroller.reset(scrollerInst);
+                        } else {
+                            $('#' + contentId).oscScroller();
+                        }
+                        $.initChannelAction(listObj[0]);
+                    }
+          
+                    if (type == 'manager'){
+                        //Reload thickbox
+                        $('.thickbox').each(function(i) {
+                            $(this).unbind('click');
+                        });
+                        tb_init('a.thickbox');
+                    }
+                    
+                    $(".friend-channel-show-popup",list).click(function(){
+                        var catid = $(this).attr('rel');
+                        $.ajax({
+                            type:"POST",
+                            url:my_base_url + my_pligg_base +"/actions/ajax/ajaxChannelPopupFriend.php", 
+                            data:{
+                                catid : catid
+                            }, 
+                            success: function (data){ 
+                                eval('var data = ' + data);
+                                $('body').append(data.content);
+                                resize_fb_popup_channel();
+                            }
+                        });
+                    });
+                    
+                }
+            }
+        });	
+    }
+					
+    $($('#channel-tabs > li').click(function(){
+        var tab = $(this);
+        var curTab = $('#channel-tabs > li.active');
+		
+        if(curTab[0]) {
+            $('#channel-tab-content-' + curTab.attr('rel')).hide();
+            curTab.removeClass('active');
+        }
+		
+        var contentId = 'channel-tab-content-' + tab.attr('rel');
+		
+        if(tab.attr('rd') != 1) {
+            tab.attr('rd', 1);
+			
+            var list = $('#' + contentId + ' > ul')[0];
+			
+            loading = document.createElement('li');
+            loading.className = 'channel-load-more';
+            loading.innerHTML = '<img src="http://static.ak.fbcdn.net/rsrc.php/v1/yb/r/GsNJNwuI-UM.gif" />';
+			
+            list.appendChild(loading);
+            load_more_channel(1, tab.attr('rel'), list, function(){
+                list.removeChild(loading);
+            });
+        }
+        if (this.id == 'menu-kenh-he-thong' || this.id == 'menu-kenh-quan-tam' || this.id == 'menu-kenh-quan-tri' || this.id == 'menu-kenh-nhieu-nguoi-thich'){
+            $('#right-nomarl').show();
+            $('#right-addchannel').hide();
+        }
+        if (this.id == 'menu-tao-kenh-moi'){
+            $('#right-nomarl').hide();  
+            $('#right-addchannel').show();   
+        }
+        tab.addClass('active');		
+        $('#' + contentId).show();
+        $('#channel-suggest-box-header-addchannel').show();      
+    })[0]).trigger('click');
+    
+    $.removeChannelBoxFollowItem = function(id) {
+        removeChannelBoxItem(id, 'follow');
+    }
+        
+    function removeChannelBoxItem(id, type) {        
+        $('#channel_box_' + type + '_item_' + id).remove();
+        
+        scrollerInst = $.oscScroller.getInstance('channel-tab-content-' + type);
+					
+        if(scrollerInst) {
+            $.oscScroller.reset(scrollerInst);
+        }
+    }
+    //Add By Truong Thai Son - 21-02-2012    
+    $('.remove-channelsuggestion-header').click(remove_channelsuggestion_header);
+    
+    function remove_channelsuggestion_header(){
+        $j("#ajaxLoading").show();
+        var id = $(this).attr('rel');
+        var query = 'id='+id+'&type=1';
+        var Ajax_action = my_base_url+my_pligg_base+"/actions/connect/ajaxChannelFollowSuggestionRemove.php";
+        $j.post(Ajax_action, query, 
+            function(result) {
+                if (/ERROR/.test(result)) {
+                    result = result.substring(7, result.length);
+                    window.alert(result);		
+                }else {
+                    if (result!="NA") {
+                    	$j("#channel_quantam").replaceWith(result);
+                    	$('.remove-channelsuggestion-header').click(remove_channelsuggestion_header);
+                    	$.initChannelAction();
+                    	/*
+                        query  = 'remove=1';
+                        Ajax_action = my_base_url+my_pligg_base+"/actions/channel/channelSuggestion.php";
+                        $j.post(Ajax_action, query, 
+                            function(result) {
+                                $j("#channel-suggest-box-header").html(result);
+                                $('.remove-channelsuggestion-header').click(remove_channelsuggestion_header);
+                                $.initChannelAction();
+                            });
+                        */    
+                    }else {
+                        $j("#channel-suggest-box-header").hide();
+                    }
+                }
+                $j("#ajaxLoading").hide();
+            });
+    }    
+
+    function getSceneDim() {
+        var dim = {
+            w: jQuery(window).width(), 
+            h: jQuery(window).height()
+        };
+
+        if(dim.w < 800) {
+            dim.w = 800;
+        }
+
+        if(dim.h < 600) {
+            dim.h = 600;
+        }
+
+        return dim;
+    }
+
+    function resize_fb_popup_channel() {
+        var dim = getSceneDim();
+        var margin_top = (dim.h - jQuery('.wrap-popup-bg-opacity-channel').height() )/2;
+        jQuery('.wrap-popup-bg-opacity-channel').css('margin-top',margin_top + 'px');
+    }
+})(jQuery);

@@ -1,0 +1,359 @@
+(function ($) {
+    'use strict';
+
+    window.osc_editor_plugin_linkhay = function (config) {
+        if (typeof config !== 'object' || config === null) {
+            config = {};
+        } else {
+            for (var x in config) {
+                if (x.substring(0, 8) !== 'linkhay_') {
+                    delete(config[x]);
+                }
+            }
+        }
+
+        return {
+            initialize: function () {
+                $.extend(this, config);
+                this.inline_popupbar_command_data = this.linkhay_popupbar_controls;
+            },
+            extends: {
+                inline_mode: true,
+                linkhay_left_sidebar_controls: [
+                    'paragraph quote',
+                    'heading_large heading_medium heading_small',
+                    'ul ol'
+                ],
+                linkhay_right_sidebar_controls: [
+                    {title: 'Chèn thêm'}, {cmd: 'hr', title: 'Kẻ ngang bài'}, {cmd: 'textbox', title: 'Highlight textbox'},
+                    {title: 'Multimedia'}, {cmd: 'link', title: 'Thêm link'}, {cmd: 'block_image', title: 'Thêm ảnh'}, {cmd: 'embed_block', title: 'Thêm video/embed'}
+                ],
+                linkhay_popupbar_controls: 'bold italic underline | align_left align_center align_right | highlight highlight_remove',
+                _linkhay_popupbar: null,
+                _linkhay_left_sidebar: null,
+                _linkhay_right_sidebar: null,
+                _linkhay_renderPopupbar: function () {
+                    this._inlineMode_renderPopupbar();
+                    this._linkhay_popupbar = this._inline_popupbar;
+
+                    if (this._linkhay_popupbar) {
+                        this._linkhay_popupbar.addClass('linkhay-editor-popupbar');
+                    }
+                },
+                _linkhay_tryDisplayPopupbar: function () {
+                    this._inlineMode_tryDisplayPopupbar();
+                },
+                _linkhay_renderLeftSidebar: function () {
+                    if (this.linkhay_left_sidebar_controls.length < 1) {
+                        this._linkhay_left_sidebar = null;
+                        return;
+                    }
+
+                    var self = this;
+
+                    var command_container = document.createElement('div');
+                    command_container.className = 'command-container';
+
+                    for (var i = 0; i < this.linkhay_left_sidebar_controls.length; i++) {
+                        var controls = this.linkhay_left_sidebar_controls[i];
+
+                        controls = controls + '';
+                        controls = controls.replace(',', ' ');
+                        controls = controls.split(' ');
+
+                        var command_list = document.createElement('ul');
+
+                        for (var x = 0; x < controls.length; x++) {
+                            var cmd_key = controls[x];
+                            cmd_key = cmd_key.trim().replace(/[^a-zA-Z0-9\_]/i, '');
+
+                            if (!cmd_key || typeof this._commands[cmd_key] === 'undefined') {
+                                continue;
+                            }
+
+                            var cmd = this._commands[cmd_key];
+
+                            if (cmd.renderer || !cmd.icon) {
+                                continue;
+                            }
+
+                            var item = document.createElement('li');
+
+                            var icon = document.createElement('i');
+                            icon.className = 'icon ' + cmd.icon;
+                            item.appendChild(icon);
+
+                            this._setupCommandBtn(item, cmd);
+
+                            item.onclick = function () {
+                                self._linkhay_left_sidebar.removeClass('active');
+                                $(document).unbind('.editorLinkhayLeftSidebar');
+                            };
+
+                            command_list.appendChild(item);
+                        }
+
+                        if (command_list.childNodes.length > 0) {
+                            command_container.appendChild(command_list);
+                        }
+                    }
+
+                    var INSIDE_FLAG = false;
+
+                    this._linkhay_left_sidebar = $('<div />').addClass('linkhay-editor-left-sidebar').appendTo(this._editbox);
+
+                    this._linkhay_left_sidebar.mouseenter(function () {
+                        INSIDE_FLAG = true;
+                    }).mouseleave(function () {
+                        INSIDE_FLAG = false;
+                    });
+
+                    this._linkhay_left_sidebar.append($('<div />').addClass('trigger').click(function (e) {
+                        self._checkFocus();
+
+                        self._linkhay_left_sidebar.toggleClass('active');
+
+                        if (self._linkhay_left_sidebar.hasClass('active')) {
+                            $(document).bind('click.editorLinkhayLeftSidebar', function () {
+                                if (!INSIDE_FLAG) {
+                                    self._linkhay_left_sidebar.removeClass('active');
+                                    $(document).unbind('.editorLinkhayLeftSidebar');
+                                }
+                            });
+                        }
+                    }).append($('<div />').append($('<i />').addClass('fa fa-paragraph'))));
+
+                    this._linkhay_left_sidebar.append(command_container);
+
+                    this._setupCommand(command_container);
+                },
+                _linkhay_tryDisplayLeftSidebar: function () {
+                    var range = this._getRange().cloneRange();
+                    var boundary = {left: 0, top: 0, right: 0, bottom: 0};
+
+                    if (range.getClientRects) {
+                        range.collapse(this._selectionIsBackward());
+                        var rects = range.getClientRects();
+
+                        if (rects.length > 0) {
+                            $.extend(boundary, rects[0]);
+                        }
+                    }
+
+                    if (boundary.top === 0 && boundary.bottom === 0) {
+                        var span = document.createElement('span');
+
+                        if (span.getClientRects) {
+                            span.appendChild(document.createTextNode('\u200b'));
+
+                            range.insertNode(span);
+
+                            $.extend(boundary, span.getClientRects()[0]);
+
+                            var span_parent = span.parentNode;
+
+                            span_parent.removeChild(span);
+
+                            span_parent.normalize();
+                        }
+                    }
+
+                    var scroller_boundary = this._getScrollerBoundary();
+
+                    if (boundary.top < scroller_boundary.top && boundary.bottom > scroller_boundary.top) {
+                        boundary.top = scroller_boundary.top;
+                    }
+
+                    if (boundary.bottom > scroller_boundary.bottom && boundary.top < scroller_boundary.bottom) {
+                        boundary.bottom = scroller_boundary.bottom;
+                    }
+
+                    var editarea_boundary = this._editarea[0].getBoundingClientRect();
+
+                    this._linkhay_left_sidebar.show().offset({
+                        top: $(window).scrollTop() + boundary.top + ((boundary.bottom - boundary.top - this._linkhay_left_sidebar.outerHeight()) / 2),
+                        left: $(window).scrollLeft() + editarea_boundary.left - this._linkhay_left_sidebar.outerWidth()
+                    });
+                },
+                _linkhay_renderRightSidebar: function () {
+                    if (this.linkhay_right_sidebar_controls.length < 1) {
+                        this._linkhay_right_sidebar = null;
+                        return;
+                    }
+
+                    var self = this;
+
+                    var command_list = document.createElement('ul');
+                    command_list.className = 'command-list';
+
+                    for (var i = 0; i < this.linkhay_right_sidebar_controls.length; i++) {
+                        var item_data = this.linkhay_right_sidebar_controls[i];
+
+                        var cmd_key = item_data.cmd;
+
+                        var item = document.createElement('li');
+
+                        if (!cmd_key) {
+                            item.className = 'tile';
+                        } else {
+                            cmd_key = cmd_key.replace(/[^a-zA-Z0-9\_]/i, '');
+
+                            if (!cmd_key || typeof this._commands[cmd_key] === 'undefined') {
+                                continue;
+                            }
+
+                            var cmd = this._commands[cmd_key];
+
+                            if (cmd.renderer) {
+                                continue;
+                            }
+
+                            if (cmd.icon) {
+                                var icon = document.createElement('i');
+                                icon.className = 'icon ' + cmd.icon;
+                                item.appendChild(icon);
+                            }
+
+                            this._setupCommandBtn(item, cmd);
+                            item.onclick = function () {
+                                self._linkhay_right_sidebar.removeClass('active');
+                                $(document).unbind('.editorLinkhayRightSidebar');
+                            };
+                        }
+
+                        item.appendChild(document.createTextNode(item_data.title));
+
+                        command_list.appendChild(item);
+                    }
+
+                    var INSIDE_FLAG = false;
+
+                    this._linkhay_right_sidebar = $('<div />').addClass('linkhay-editor-right-sidebar').appendTo(this._editbox);
+
+                    this._linkhay_right_sidebar.mouseenter(function () {
+                        INSIDE_FLAG = true;
+                    }).mouseleave(function () {
+                        INSIDE_FLAG = false;
+                    });
+
+                    this._linkhay_right_sidebar.append($('<div />').addClass('trigger').click(function (e) {
+                        self._checkFocus();
+
+                        self._linkhay_right_sidebar.toggleClass('active');
+
+                        if (self._linkhay_right_sidebar.hasClass('active')) {
+                            $(document).bind('click.editorLinkhayRightSidebar', function () {
+                                if (!INSIDE_FLAG) {
+                                    self._linkhay_right_sidebar.removeClass('active');
+                                    $(document).unbind('.editorLinkhayRightSidebar');
+                                }
+                            });
+                        }
+                    }));
+
+                    this._linkhay_right_sidebar.append(command_list);
+
+                    this._setupCommand(command_list);
+                },
+                _linkhay_tryDisplayRightSidebar: function () {
+                    var range = this._getRange().cloneRange();
+                    var boundary = {left: 0, top: 0, right: 0, bottom: 0};
+
+                    if (range.getClientRects) {
+                        range.collapse(this._selectionIsBackward());
+                        var rects = range.getClientRects();
+
+                        if (rects.length > 0) {
+                            $.extend(boundary, rects[0]);
+                        }
+                    }
+
+                    if (boundary.top === 0 && boundary.bottom === 0) {
+                        var span = document.createElement('span');
+
+                        if (span.getClientRects) {
+                            span.appendChild(document.createTextNode('\u200b'));
+
+                            range.insertNode(span);
+
+                            $.extend(boundary, span.getClientRects()[0]);
+
+                            var span_parent = span.parentNode;
+
+                            span_parent.removeChild(span);
+
+                            span_parent.normalize();
+                        }
+                    }
+
+                    var scroller_boundary = this._getScrollerBoundary();
+
+                    if (boundary.top < scroller_boundary.top && boundary.bottom > scroller_boundary.top) {
+                        boundary.top = scroller_boundary.top;
+                    }
+
+                    if (boundary.bottom > scroller_boundary.bottom && boundary.top < scroller_boundary.bottom) {
+                        boundary.bottom = scroller_boundary.bottom;
+                    }
+
+                    var editarea_boundary = this._editarea[0].getBoundingClientRect();
+
+                    this._linkhay_right_sidebar.show().offset({
+                        top: $(window).scrollTop() + boundary.top + ((boundary.bottom - boundary.top - this._linkhay_right_sidebar.outerHeight()) / 2),
+                        left: $(window).scrollLeft() + editarea_boundary.right
+                    });
+                },
+                _inlineMode_renderControl: function () {
+                    this._linkhay_renderPopupbar();
+                    this._linkhay_renderLeftSidebar();
+                    this._linkhay_renderRightSidebar();
+
+                    this._preContext(this._linkhay_popupbar ? this._linkhay_popupbar[0] : null, this._linkhay_left_sidebar ? this._linkhay_left_sidebar[0] : null, this._linkhay_right_sidebar ? this._linkhay_right_sidebar[0] : null);
+
+                    var self = this;
+
+                    var clear_timer = null;
+                    var render_timer = null;
+
+                    this._editarea.unbind('.oscEditorInline').bind('blur.oscEditorInline', function () {
+                        clearTimeout(clear_timer);
+                        clearTimeout(render_timer);
+
+                        clear_timer = setTimeout(function () {
+                            if (self._linkhay_popupbar) {
+                                self._linkhay_popupbar.hide();
+                            }
+
+                            if (self._linkhay_left_sidebar) {
+                                self._linkhay_left_sidebar.hide();
+                            }
+
+                            if (self._linkhay_right_sidebar) {
+                                self._linkhay_right_sidebar.hide();
+                            }
+                        }, 200);
+                    });
+
+                    this._context_callback.inline = function () {
+                        clearTimeout(clear_timer);
+                        clearTimeout(render_timer);
+
+                        render_timer = setTimeout(function () {
+                            if (self._linkhay_popupbar) {
+                                self._linkhay_tryDisplayPopupbar();
+                            }
+
+                            if (self._linkhay_left_sidebar) {
+                                self._linkhay_tryDisplayLeftSidebar();
+                            }
+
+                            if (self._linkhay_right_sidebar) {
+                                self._linkhay_tryDisplayRightSidebar();
+                            }
+                        }, 50);
+                    };
+                }
+            }
+        };
+    };
+})(jQuery);

@@ -1,0 +1,294 @@
+/**
+ * Box Link Reshare 
+ */
+
+var _outOfIntroBox = true;
+function closeIntroBox() {
+    if(_outOfIntroBox) {
+        $j(".removeBoxTemplates").remove();
+        $j(document).unbind('mousedown', closeIntroBox);
+    }	
+}
+$j.ajaxBoxReshare = function() {
+    jQuery("#ajaxLoading").show();
+    var uReshare = $j(this).attr("rev");
+    var datasplit = $j(this).attr("rel").split('-');
+    $j("#linkReshare_"+datasplit[1]).addClass("mini-loader");
+    var user_login = datasplit[2];
+    var lId = datasplit[1];
+    var from = datasplit[3];
+    var dataPost = { 
+        id:lId
+    }
+    
+    jQuery.post(my_base_url+my_pligg_base+"/ajaxLinkReshare", dataPost, 
+        function(result) {
+            jQuery("#ajaxLoading").hide();
+            if (/ERROR:/.test(result)) {
+                result = result.substring(7, result.length);
+				
+                if(result=="sms"){
+                    show_sms_active_box(result, 'reshare');						 
+                } else {
+                    window.alert(result);
+                }
+            } else {
+                //Check Json
+                eval("var result="+result);
+                if(result.is_vote == 0){
+                    var vote = jQuery('#vote_'+lId);
+                    vote.find('.hot-count-wrap').html(result.total_vote);
+                    vote.find('.vote').attr('class','voted');
+                }
+                if(result.is_reshare == 0){
+                    //Chưa loan tin
+                    if(from == 'linkView'){
+                        if($j("#link_reshare_"+lId).hasClass('no-user')){
+                            var html = '<a href="/u/'+uReshare+'" title="Trang cá nhân của '+uReshare+'" class="text-gray">'+uReshare+'</a>';
+                            $j("#link_reshare_"+lId).html(html);   
+                            $j("#link_reshare_"+lId).parent().css('display','inline-block');   
+                        } else {
+                            var html = '<a href="/u/'+uReshare+'" title="Trang cá nhân của '+uReshare+'" class="text-gray">'+uReshare+'</a>, ';
+                            $j("#link_reshare_"+lId+" > a:first").before(html);   
+                        }
+                    //                        $j("#link_reshare_"+lId).html('<span class="btn-action btnloantin clicked" title="Tin hot!"><i></i>Đã loan tin</span>');
+                    //                        $j("#link_reshare_"+lId).next().find('.number-reshare').html(result.total_reshare);
+                    }else{
+                        if($j("#link_reshare_"+lId).html() == ""){
+                            $j("#link_reshare_"+lId).html('<a href="'+my_pligg_base+'/u/'+user_login+'" title="Trang cá nhân của '+user_login+'" class="text-gray">'+user_login+'</a> đã loan tin</span>');
+                        }else{
+                            $j("#link_reshare_"+lId).html('<a href="'+my_pligg_base+'/u/'+user_login+'" title="Trang cá nhân của '+user_login+'" class="text-gray">'+user_login+'</a>, ' + $j("#link_reshare_"+lId).html());
+                        }
+                        $j("#link_reshare_"+lId).show();
+                    }
+					
+                }else{
+                    window.alert('Bạn đã loan tin rồi!');
+                    //$j('.notice_'+lId).html('Bạn đã loan tin rồi!');					
+                    setTimeout(function(){
+                        $j("#boxTemplatePop_"+lId).remove();
+                    }, 4000);	
+                }
+            }
+            $j("#linkReshare_"+datasplit[1]).removeClass("mini-loader");
+            //$j(".pos-r>.pop-reshared-box").remove();
+            $j('.notice_'+lId).addClass('greenie small').html('Bạn đã loan tin thành công!');					
+            setTimeout(function(){
+                $j(".removeBoxTemplates").remove();
+            }, 2500);
+        }
+	
+        );
+	
+}
+function ajaxReshareChannel() {
+    var datasplit = $j(this).attr("rel").split('-');
+    var user_login = datasplit[2];
+    var channelId = datasplit[1];
+    var message = $j("#textarea_"+channelId).val();
+    var query = 'cate_id=' + channelId + '&message=' + message;
+    var button = $j(".btn-boxreshare");
+    button.attr('disabled', 'disabled');
+    $j("#ajaxLoading").show();
+    $j.post(my_base_url+my_pligg_base+"/actions/promotion/promote_channel.php", query, 
+        function(result) {
+            eval("var result="+result);
+			
+            $j("#ajaxLoading").hide();
+			
+            if (result.error == 0) {			
+                $j('.notice_'+channelId).addClass('greenie small').html('Bạn đã giới thiệu kênh '  + datasplit[3] + ' thành công!');					
+                setTimeout(function(){
+                    $j("#boxTemplatePop_"+channelId).remove();
+                }, 4000);
+            } else if (result.error == 3) {
+                $j('.notice_'+channelId).html('Bạn đã giới thiệu kênh này!');					
+                setTimeout(function(){
+                    $j("#boxTemplatePop_"+channelId).remove();
+                }, 4000);				
+            } else if (result.error == 4) {
+                $j('.notice_'+channelId).html('Có lỗi xảy ra, xin hãy thử lại!');
+                button.removeAttr("disabled");
+            } else {
+                $j('.notice_'+channelId).html(result.show_error);
+                button.removeAttr("disabled");
+            }
+        });
+    $j("#textarea_"+channelId).focus(function() {
+        var $this = $j(this);
+        if ($this.val() == 'Kênh hay nên xem'){
+            $this.val('');
+        }else{
+            $this.select();
+        }
+    });
+}
+// Gioi thieu ban be
+function ajaxreShareFriend() {
+    var datasplit = $j(this).attr("rel").split('-');
+    var puid = datasplit[1];
+    var message = $j("#textarea_"+puid).val();        
+    var query = 'link_id=0' + '&message=' + message + '&puid=' + puid;
+    var prAjaxUrl = my_base_url+my_pligg_base+"/actions/promotion/promote.php";		
+    var button = $j(".btn-boxreshare");
+    button.attr('disabled', 'disabled');
+    $j("#ajaxLoading").show();
+    $j.post(prAjaxUrl, query, 
+        function(result) {
+            //Parse Json
+            eval("var result="+result);
+            $j("#ajaxLoading").hide();
+            if (result.error == 0) {
+                $j('.notice_'+puid).removeClass('error');
+                $j('.notice_'+puid).html(result.success);
+                //$j('.notice_'+puid).html('Bạn đã giới thiệu '+ datasplit[3] +' thành công!');
+                setTimeout(function(){
+                    $j("#boxTemplatePop_"+puid).remove();
+                }, 4000);
+					
+            } else if (result.error == 3) {
+                $j('.notice_'+puid).html('Bạn đã từng giới thiệu người này!');					
+                setTimeout(function(){
+                    $j("#boxTemplatePop_"+puid).remove();
+                }, 4000);
+            } else if (result.error == 4) {
+                $j('.notice_'+puid).html('Có lỗi xảy ra, bạn hãy thử lại');					
+                button.removeAttr("disabled");
+            } else {
+                $j('.notice_'+puid).html(result.show_error);
+                button.removeAttr("disabled");
+            }
+        });
+    return false;
+}
+// xử lý templates box theo type
+function ajaxTemplateBox() {
+    var offset = $j(this).offset();
+    $j(".removeBoxTemplates").remove();
+    $j("#ajaxLoading").show();
+    var type = $j(this).attr("rel").split('-');
+    if(type[3] && type[3] == 'linkView') { 
+        $j("#link_reshare_"+type[1]).addClass("mini-loader");
+    } else {
+        $j("#linkReshare_"+type[1]).addClass("mini-loader");
+    }
+    switch (type[0]) {
+        case 'reShare':
+//            console.log('ajaxTemplateBox');
+            var html = $j("#boxTemplatePop").html();
+            html = html.replace(/\[text_default\]/g, 'Tin hay nên đọc');
+            html = html.replace(/\[messenger\]/g, 'Loan tin tới bạn bè');
+            html = html.replace(/\[link_id\]/g, type[1]);
+            html = html.replace(/\[btn_text\]/g, 'Loan');
+            if(type[3] && type[3] == 'linkView') {
+                html = html.replace(/\[linkView\]/g, 'linkView');
+                $j("body").append(html);
+                $j("#boxTemplatePop_"+type[1]).css({
+                    "top":offset.top+20,
+                    "left":offset.left
+                    }).addClass("removeBoxTemplates");
+                $j("#link_reshare_"+type[1]).removeClass("mini-loader");
+            } else {
+                $j("body").append(html);
+                $j("#boxTemplatePop_"+type[1]).css({
+                    "top":offset.top+20,
+                    "left":offset.left
+                    }).addClass("removeBoxTemplates");
+                $j("#linkReshare_"+type[1]).removeClass("mini-loader");
+            }
+            $j('.btn-boxreshare').click($j.ajaxBoxReshare);
+            $j("#ajaxLoading").hide();
+            $j('#textarea_'+type[1]).focus(function() {
+                var $this = $j(this);
+                if ($this.val() == 'Tin hay nên đọc'){
+                    $this.val('');
+                }else{
+                    $this.select();
+                }
+            });
+            break;
+        case 'reShareChannel':
+            var html = $j("#boxTemplatePop").html();
+            html = html.replace(/\[text_default\]/g, 'Viết giới thiệu tại đây...');
+            html = html.replace(/\[messenger\]/g, 'Giới thiệu kênh <strong>'+type[3]+'</strong> tới bạn bè');
+            html = html.replace(/\[link_id\]/g, type[1]);
+            html = html.replace(/\[btn_text\]/g, 'Gửi');
+            html = html.replace(/\[linkView\]/g, type[3]);
+            $j("body").append(html);
+            $j("#boxTemplatePop_"+type[1]).css({
+                "top":offset.top+20,
+                "left":offset.left
+                }).addClass("removeBoxTemplates");
+            $j('.btn-boxreshare').click(ajaxReshareChannel);
+            $j("#ajaxLoading").hide();
+            $j('#textarea_'+type[1]).focus(function() {
+                if (this.value == this.defaultValue){
+                    this.value = '';
+                }
+                if(this.value != this.defaultValue){
+                    this.select();
+                }
+            }).blur(function() {
+                if ($j.trim(this.value) == ''){
+                    this.value = (this.defaultValue ? this.defaultValue : '');
+                }
+            });
+            break;
+        case 'reShareFriend':
+            var html = $j("#boxTemplatePop").html();
+            html = html.replace(/\[text_default\]/g, 'Thành viên đáng quan tâm');
+            html = html.replace(/\[messenger\]/g, 'Giới thiệu <strong>'+type[2]+'</strong> tới bạn bè');
+            html = html.replace(/\[link_id\]/g, type[1]);
+            html = html.replace(/\[btn_text\]/g, 'Loan');
+            html = html.replace(/\[linkView\]/g, type[2]);
+			
+            $j("body").append(html);
+            $j("#boxTemplatePop_"+type[1]).css({
+                "top":offset.top+20,
+                "left":offset.left
+                }).addClass("removeBoxTemplates");
+            $j('.btn-boxreshare').click(ajaxreShareFriend);
+            $j("#ajaxLoading").hide();     
+            $j('#textarea_'+type[1]).focus(function() {
+                var $this = $j(this);
+                if ($this.val() == 'Thành viên đáng quan tâm'){
+                    $this.val('');
+                }else{
+                    $this.select();
+                }
+            });
+            break;         
+    }
+
+    $j(".removeBoxTemplates").hover(function(){
+        _outOfIntroBox = false;
+    }, function(){
+        _outOfIntroBox = true;
+    });	
+    $j(document).bind('mousedown', closeIntroBox);
+}
+function ajaxLinkReshare(){
+    $j(".pop-reshared-box").remove();
+    $j("#ajaxLoading").show();
+    var user_login = $j(this).attr("currentuser");
+    var lId = $j(this).attr("linkid");
+    var from = $j(this).attr("from");
+    var dataPost = { 
+        type: 'reShare',
+        userId:user_login,
+        lId:lId,
+        from:from
+    }
+    $j("#linkReshare_"+lId).addClass("introduce-expanded");
+    $j.post(my_base_url+my_pligg_base+"/ajaxTemplatesBox", dataPost, function(result){
+        $j("#linkReshare_"+lId).append(result);
+        $j('[mrk="box-reshared"]').click($j.ajaxBoxReshare);
+    });
+	
+}
+
+$j('.mrk-reshareLink').unbind('click');
+$j('.mrk-reshareLink').click($j.ajaxBoxReshare);
+$j('.mrk-intro').click(ajaxTemplateBox);
+
+	

@@ -1,0 +1,100 @@
+/**
+ * JQUERY PLUGIN: SCROLLER
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the GNU General Public License version 3
+ * that is bundled with this package in the file LICENSE.txt.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.gnu.org/licenses/gpl-3.0.html
+ * If you did not receive a copy of the license and are unable to
+ * obtain it through the world-wide-web, please send an email
+ * to license@osecore.com so we can send you a copy immediately.
+ *
+ * DISCLAIMER
+ *
+ * Do not edit or add to this file if you wish to upgrade OSECORE to newer
+ * versions in the future. If you wish to customize OSECORE for your
+ * needs please refer to http://www.osecore.com for more information.
+ *
+ * @copyright	Copyright (C) 2011 by Sang Le Tuan (http://www.osecore.com). All rights reserved.
+ * @license     http://www.gnu.org/licenses/gpl-3.0.html GNU General Public License version 3
+ * @author      Sang Le Tuan - batsatla@gmail.com
+ */
+
+(function($){
+	function OSCTextareaAutoExpander() {
+		
+	}
+	
+	$.extend(OSCTextareaAutoExpander.prototype, {
+		instances : {},
+		
+		initialize : function(textarea, options) {
+			if(typeof options != 'object') {
+				options = {};
+			}
+			
+			var obj = $(textarea);
+			
+			if(obj.data('autoExpander')) {
+                                inst = obj.data('autoExpander');
+				inst.textarea.style.height = "";		
+                                this._expand(obj.data('autoExpander'));
+				return false;
+			}
+			
+			options.textareaObj = obj;
+			
+			var inst = {
+				minHeight : 15,
+				maxHeight : 99999,
+				textarea : textarea,
+				textareaObj : null
+			};
+			
+			$.extend(inst, options);
+			
+			obj.data('autoExpander', inst);
+			
+			var _self = this;
+			
+			inst.textareaObj.css("padding-top", 0).css("padding-bottom", 0);  
+			inst.textareaObj.bind("keyup", function(){ _self._expand(inst); }).bind("focus", function(){ _self._expand(inst); });  
+			
+			this._expand(inst);			
+		},
+		
+		_expand : function(inst) {
+			var vlen = inst.textarea.value.length;
+			var ewidth = inst.textarea.offsetWidth;
+			
+			if (vlen != inst.textarea.valLength || ewidth != inst.textarea.boxWidth) {  
+				if (vlen < inst.textarea.valLength || ewidth != inst.textarea.boxWidth) {
+					inst.textarea.style.height = "0px";						
+				}
+				
+				var h = Math.max(inst.minHeight, Math.min(inst.textarea.scrollHeight, inst.maxHeight));
+				
+				inst.textarea.style.overflow = (inst.textarea.scrollHeight > h ? "auto" : "hidden");  
+				inst.textarea.style.height = h + "px";  
+				inst.textarea.valLength = vlen;  
+				inst.textarea.boxWidth = ewidth;  
+			}  
+			
+			return true;  
+		}
+	});
+    
+	$.oscTextareaAutoExpander = new OSCTextareaAutoExpander(); // singleton instance
+	
+	$.fn.autoExpander = function(options) {		
+		return this.each(function(){
+			if (this.tagName != "TEXTAREA") {
+				return;
+			}
+			
+			$.oscTextareaAutoExpander.initialize(this, options);		
+		});
+	};
+})(jQuery);

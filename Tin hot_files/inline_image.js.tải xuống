@@ -1,0 +1,478 @@
+(function ($) {
+    'use strict';
+    window.osc_editor_plugin_image = function (config) {
+        if (typeof config !== 'object' || config === null) {
+            config = {};
+        } else {
+            for (var x in config) {
+                if (x.indexOf('block_image_') !== 0) {
+                    delete(config[x]);
+                }
+            }
+        }
+        return {
+            initialize: function () {
+                $.extend(this, config);
+
+                this.image_max_item = parseInt(this.image_max_item);
+
+                if (isNaN(this.image_max_item) || this.image_max_item < 0) {
+                    this.image_max_item = 0;
+                }
+
+                this.image_min_width = parseInt(this.image_min_width);
+
+                if (isNaN(this.image_min_width) || this.image_min_width < 0) {
+                    this.image_min_width = 0;
+                }
+
+                this.image_min_height = parseInt(this.image_min_height);
+
+                if (isNaN(this.image_min_height) || this.image_min_height < 0) {
+                    this.image_min_height = 0;
+                }
+
+                this._commands.inline_image = {cmd: 'inlineImage', icon: 'image'};
+            },
+            extends: {
+                image_max_item: 0,
+                image_caption_enable: true,
+                _imageCounter: function () {
+                    return this._editarea[0].querySelectorAll('.osc-editor-inline-image').length;
+                },
+                _imageUploadCallback_Add: function (file_id, upload_progress_flag, skip_add_history) {
+                    this._checkFocus();
+
+                    if (!skip_add_history) {
+                        this._historyAdd();
+                    }
+
+                    var img = document.createElement('img');
+                    img.setAttribute('id', 'osc-editor-inline-image-' + file_id);
+                    img.className = 'osc-editor-inline-image';
+
+                    var canvas = document.createElement('canvas');
+                    var ctx = canvas.getContext('2d');
+                    ctx.globalAlpha = 0;
+                    ctx.fillStyle = 'rgba(0,0,0,.5)';
+                    img.setAttribute('src',canvas.toDataURL('image/png'));
+
+                    this._commandInsertHTML(img, true);
+                    this._imageSetupControl(img);
+                    this._resizeImage(file_id);
+                },
+
+                _resizeImage: function (file_id ) {
+                    // Minimum resizable area
+                    var minWidth = 20;
+                    var minHeight = 20;
+                    var x, y ;
+                    var topOri,leftOri,widthOri,heightOri,ratio,move;
+                    var redraw = false;
+                    var imageClone ;
+                    var image = $("#osc-editor-inline-image-" + file_id);
+
+                    // Mouse events
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+
+                    image.mouseover(function (e) {
+                        calc(e);
+                        removeChildResize();
+                        $(".osc-editor-element-control").css({"top" : topOri + 30 +'px'});
+                        showIconResize();
+                    });
+                    image.mouseout(function (e) {
+                        setTimeout(function () {
+                            removeChildResize();
+                        },3000);
+                    });
+
+                    function calc(e) {
+                        x = e.pageX - image.offset().left;
+                        y = e.pageY - image.offset().top;
+
+                        var parentPos = $("[box-mode*='1']").offset();
+                        topOri =  image.offset().top + window.scrollY - parentPos.top ;
+                        leftOri = image.offset().left + window.scrollX- parentPos.left ;
+                        widthOri = image.width();
+                        heightOri = image.height();
+                        ratio = widthOri/heightOri;
+                    }
+
+
+                    function onMove(e) {
+                        calc(e);
+                        redraw = true;
+                        e.preventDefault();
+                    }
+
+                    function onMouseDown(e) {
+                        calc(e);
+
+                        imageClone = $('<img />').attr('id', 'osc-editor-inline-clone-image-' + file_id).css({"top": topOri, "left": leftOri, "width": widthOri, "height":heightOri}).addClass('osc-editor-inline-clone-image');
+                        imageClone.attr('src', image.attr("src"));
+                        imageClone.appendTo($("[box-mode*='1']"));
+                        image.removeClass("image-inline-reset");
+                        e.preventDefault();
+                    }
+
+                    function showIconResize() {
+                        var container =  $('<div />').addClass("resize");
+                        var leftResize,topResize,widthResize,heightResize;
+                        leftResize = leftOri - 5;
+                        topResize = topOri - 5;
+                        widthResize = widthOri;
+                        heightResize= heightOri;
+                        var parentPos = $("[box-mode*='1']").offset();
+                        if (imageClone && imageClone.offset().left>0){
+                            leftResize = imageClone.offset().left + window.scrollX - parentPos.left - 5;
+                            topResize = imageClone.offset().top + window.scrollY - parentPos.top - 5;
+                            widthResize = imageClone.width();
+                            heightResize = imageClone.height();
+                        }
+
+                        $('<div />').addClass('resize-image-inline resize-top').css({"top":topResize+ "px" , "left":(leftResize + widthResize/2 ) + "px"}).appendTo(container);
+                        $('<div />').addClass('resize-image-inline resize-bottom').css({"top":(topResize + heightResize ) + "px" , "left":(leftResize +widthResize/2 ) + "px"}).appendTo(container);
+                        $('<div />').addClass('resize-image-inline resize-left').css({"top":(topResize + heightResize/2) + "px" , "left":leftResize+ "px"}).appendTo(container);
+                        $('<div />').addClass('resize-image-inline resize-right').css({"top":(topResize + heightResize/2) + "px" , "left":(leftResize + widthResize ) + "px"}).appendTo(container);
+                        $('<div />').addClass('resize-image-inline resize-top-left').css({"top":topResize+"px" , "left":leftResize+ "px"}).appendTo(container);
+                        $('<div />').addClass('resize-image-inline resize-top-right').css({"top":topResize + "px" , "left":(leftResize+ widthResize ) + "px"}).appendTo(container);
+                        $('<div />').addClass('resize-image-inline resize-bottom-left').css({"top":(topResize+ heightResize ) + "px" , "left":leftResize+ "px"}).appendTo(container);
+                        $('<div />').addClass('resize-image-inline resize-bottom-right').css({"top":(topResize + heightResize) + "px" , "left":(leftResize + widthResize ) + "px"}).appendTo(container);
+
+                        container.appendTo($("[box-mode*='1']"));
+
+                        $( ".resize-top" ).mousedown(function(e) {
+                            move = 2;
+                            onMouseDown(e);
+                        });
+                        $( ".resize-bottom" ).mousedown(function(e) {
+                            move = 6;
+                            onMouseDown(e);
+                        });
+                        $( ".resize-left" ).mousedown(function(e) {
+                            move = 8;
+                            onMouseDown(e);
+                        });
+                        $(".resize-right").mousedown(function(e){
+                            move = 4;
+                            onMouseDown(e);
+                        });
+                        $( ".resize-top-left" ).mousedown(function(e) {
+                            move = 1;
+                            onMouseDown(e);
+                        });
+                        $( ".resize-top-right" ).mousedown(function(e) {
+                            move = 3;
+                            onMouseDown(e);
+                        });
+                        $( ".resize-bottom-left" ).mousedown(function(e) {
+                            move = 7;
+                            onMouseDown(e);
+                        });
+                        $( ".resize-bottom-right" ).mousedown(function(e) {
+                            move = 5;
+                            onMouseDown(e);
+                        });
+
+                        // 1  2  3
+                        // 8     4
+                        // 7  6  5
+                    }
+
+                    function removeChildResize() {
+                        $("div").remove(".resize");
+                    }
+
+                    function animate() {
+                        if (image.hasClass("image-inline-reset")){
+                            image.removeAttr("style");
+                        }
+                        requestAnimationFrame(animate);
+
+                        if (!redraw) return;
+
+                        redraw = false;
+                        // 1  2  3
+                        // 8     4
+                        // 7  6  5
+                        if (move) {
+                            switch (move){
+                                case 1 :
+                                    imageClone.css('width',Math.max(widthOri - x, minWidth) + 'px');
+                                    imageClone.css('height', imageClone.width() / ratio + 'px');
+                                    imageClone.css('left' , leftOri + widthOri - imageClone.width() + 'px');
+                                    imageClone.css('top' , topOri + heightOri - imageClone.height() + 'px');
+                                    break;
+                                case 2 :
+                                    imageClone.css('height' , Math.max(heightOri - y, minHeight) + 'px');
+                                    imageClone.css('top' , topOri + heightOri - imageClone.height() + 'px');
+                                    break;
+                                case 3 :
+                                    imageClone.css('height' , Math.max(heightOri - y, minHeight) + 'px');
+                                    imageClone.css('width' , imageClone.height() * ratio + 'px');
+                                    imageClone.css('top' , topOri + heightOri - imageClone.height() + 'px');
+                                    break;
+                                case 4 :
+                                    imageClone.css('width',Math.max( x, minWidth) + 'px');
+                                    break;
+                                case 5 :
+                                    imageClone.css('height',Math.max(y, minHeight) + 'px');
+                                    imageClone.css('width' ,  imageClone.height() * ratio + 'px');
+                                    break;
+                                case 6 :
+                                    imageClone.css('height',Math.max(y, minHeight) + 'px');
+                                    break;
+                                case 7 :
+                                    imageClone.css('width', Math.max(widthOri - x,minWidth ) + 'px');
+                                    imageClone.css('height' , imageClone.width() / ratio + 'px');
+                                    imageClone.css('left' , leftOri + widthOri - imageClone.width() + 'px');
+                                    break;
+                                case 8 :
+                                    imageClone.css('width',Math.max(widthOri - x, minWidth) + 'px');
+                                    imageClone.css('left' , leftOri + widthOri - imageClone.width() + 'px');
+                                    break;
+                            }
+                            removeChildResize();
+                            showIconResize();
+                            return;
+                        }
+                    }
+
+                    animate();
+
+                    function onUp(e) {
+                        if (imageClone){
+                            resizeImageOri(imageClone.offset().left,imageClone.offset().top,imageClone.width(),imageClone.height());
+                        }
+                        $("img").remove(".osc-editor-inline-clone-image");
+                        move = 0;
+                        calc(e);
+                        removeChildResize();
+                        e.preventDefault();
+                    }
+                    function resizeImageOri(left,top,width,height) {
+                        setTimeout(function () {
+                            image.css({"left" : left + 'px', "top" : top +"px", "width" : width + "px", "height" : height + 'px'});
+                        },400);
+                    }
+                },
+
+                _imageGetByFileId: function (file_id) {
+                    return document.getElementById('osc-editor-inline-image-' + file_id);
+                },
+                _imageSetupControl: function (image) {
+                    var controls = [];
+
+                    if (this.image_caption_enable) {
+                        controls.push({key: 'imageLeft'});
+                    }
+
+                    if (this.image_caption_enable) {
+                        controls.push({key: 'imageCenter'});
+                    }
+
+                    if (this.image_caption_enable) {
+                        controls.push({key: 'imageRight'});
+                    }
+
+                    if (this.image_caption_enable) {
+                        controls.push({key: 'imageReset'});
+                    }
+
+                    if (this.image_caption_enable) {
+                        controls.push({key: 'delete'});
+                    }
+
+                    if (controls.length < 1) {
+                        return;
+                    }
+
+                    this._setupElementControl(image, {top: [controls]});
+                },
+
+                _elementControlImageLeft_RenderCommand : function (node) {
+                    var self = this;
+
+                    return [$('<li />').append(this._renderIcon('block-align-left'))
+                        .mousedown(function (e) {
+                            e.stopPropagation();
+                            self._elementControlAlignImageInline_Setter(node,'left');
+                        })];
+                },
+
+                _elementControlImageRight_RenderCommand : function (node) {
+                    var self = this;
+
+                    return [$('<li />').append(this._renderIcon('block-align-right'))
+                        .mousedown(function (e) {
+                            e.stopPropagation();
+                            self._elementControlAlignImageInline_Setter(node,'right');
+                        })];
+
+                },
+
+                _elementControlImageCenter_RenderCommand : function (node){
+                    var self = this;
+
+                    return [$('<li />').append(this._renderIcon('block-align-fit'))
+                        .mousedown(function (e) {
+                            e.stopPropagation();
+                            self._elementControlAlignImageInline_Setter(node,'none');
+                        })];
+                },
+
+
+                _elementControlImageReset_RenderCommand : function (node){
+                    var self = this;
+
+                    return [$('<li />').append(this._renderIcon('block-align-fit'))
+                        .mousedown(function (e) {
+                            e.stopPropagation();
+                            self._elementControlAlignImageInline_Setter(node,'reset');
+                        })];
+                },
+
+                _elementControlAlignImageInline_Setter : function (node,flag) {
+                    node = $(node);
+
+                    node.removeClass('image-inline-left').removeClass('image-inline-right');
+
+                    if (flag) {
+
+                        if (flag === 'left') {
+                            node.addClass('image-inline-left');
+                        } else if (flag === 'right') {
+                            node.addClass('image-inline-right');
+                        } else if (flag === 'none') {
+                            node.removeClass('image-inline-left').removeClass('image-inline-right');
+                        } else if (flag === 'reset'){
+                            node.addClass("image-inline-reset");
+                            node.removeAttr("style");
+                        }
+                    }
+                },
+
+                _imageUploadCallback_Success: function (file_id, response_data) {
+                    var image = this._imageGetByFileId(file_id);
+                    if (!image) {
+                        return;
+                    }
+
+                    image = $(image);
+                    image.attr('src', response_data.url);
+                    this._commandInsertHTML(image[0], true);
+                    this._imageSetupControl(image[0]);
+                    this._resizeImage(file_id);
+                },
+                _imageUploadCallback_Error: function (file_id, error_code, error_message) {
+                    var image = this._imageGetByFileId(file_id);
+                    if (!image) {
+                        return;
+                    }
+
+                    image = $(image);
+                    image.append($('<div />').addClass('error-message').html((error_code > 0 ? '<div>ERROR [' + error_code + ']</div>' : '') + error_message));
+                    setTimeout(function () {
+                        image.fadeOut({complete: function () {
+                            image.remove();
+                        }});
+                    }, 5000);
+                },
+                _imageInsertViaUrl: function (image_url, skip_add_history) {
+                    var self = this;
+
+                    var file_id = $.makeUniqid();
+
+                    this._imageUploadCallback_Add(file_id, false, skip_add_history);
+
+                    $.ajax({
+                        type: 'post',
+                        data: {
+                            type: 'image',
+                            image_url: image_url
+                        },
+                        crossDomain: true,
+                        xhrFields: {withCredentials: true},
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-OSC-Cross-Request': 'OK'
+                        },
+                        url: linkhay_post_url + '/core/editor/imageUpload',
+                        success: function (response) {
+                            if (response.result !== 'OK') {
+                                self._imageUploadCallback_Error(file_id, response.code, response.message);
+                            } else {
+                                self._imageUploadCallback_Success(file_id, response.data);
+                            }
+                        }
+                    });
+                },
+                _commandInlineImage: function () {
+                    if (this.image_max_item > 0 && this._imageCounter() >= this.image_max_item) {
+                        alert('Bạn chỉ được tạo tối đa ' + this.image_max_item + ' ảnh');
+                        return;
+                    }
+
+                    var self = this;
+                    var win = null;
+                    var container = $('<div />').addClass('osc-editor-win-frm').width(350);
+                    $('<label />').attr('for', '').html('Điền URL của ảnh bạn muốn upload').appendTo(container);
+                    var url_input = $('<input />').prop('type', 'text').appendTo($('<div />').addClass('input-wrap').appendTo(container));
+                    $('<label />').attr('for', '').html('Hoặc upload ảnh từ máy của bạn').appendTo(container);
+                    var uploader = $('<div />').addClass('osc-editor-block-img-uploader');
+                    $('<div />').appendTo(container).append(uploader);
+                    var action_bar = $('<div />').addClass('action-bar').appendTo(container);
+                    $('<button />').html('Cancel').click(function () {
+                        win.destroy();
+                    }).appendTo(action_bar);
+                    $('<button />').addClass('blue-btn').html('Upload ảnh').click(function () {
+                        var image_url = url_input.val();
+                        if (!image_url) {
+                            alert('Bạn chưa điền URL cho ảnh');
+                            return;
+                        }
+
+                        win.destroy();
+
+                        self._imageInsertViaUrl(image_url);
+                    }).appendTo(action_bar);
+                    win = this._renderWindow('Thêm ảnh', container);
+                    uploader.oscV2_uploader({
+                        max_files: 1,
+                        max_connections: 1,
+                        process_url: linkhay_post_url + '/core/editor/imageUpload',
+                        btn_content: 'Chọn file ảnh từ máy của bạn',
+                        dragdrop_content: 'Kéo và thả file vào đây để upload...',
+                        image_mode: true,
+                        xhrFields: {withCredentials: true},
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-OSC-Cross-Request': 'OK'
+                        }
+                    }).bind('uploader_add_file', function (e, file_id, file, file_name, file_size) {
+                        uploader.detach();
+                        win.destroy();
+                        self._imageUploadCallback_Add(file_id, true);
+                        var reader = new FileReader();
+                        reader.onload = function (e) {
+                            var img = self._imageGetByFileId(file_id);
+                            img.setAttribute('src', e.target.result);
+                        };
+                        reader.readAsDataURL(file);
+                    }).bind('uploader_upload_complete', function (e, file_id, response, pointer) {
+                        eval('response = ' + response);
+                        if (response.result !== 'OK') {
+                            self._imageUploadCallback_Error(file_id, response.code, response.message);
+                        } else {
+                            self._imageUploadCallback_Success(file_id, response.data);
+                        }
+                    }).bind('uploader_error', function (e, file_id, error_code, error_message) {
+                        self._imageUploadCallback_Error(file_id, error_code, error_message);
+                    });
+                }
+            }
+        };
+    }
+})(jQuery);

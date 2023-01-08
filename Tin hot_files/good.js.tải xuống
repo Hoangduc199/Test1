@@ -1,0 +1,3497 @@
+/* ManhTienpt: Lock form submit - mention */ 
+var lock_form_submit = false;
+var is_child_reply = false;
+var base64 =
+{
+    _keyStr : 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=',
+
+    encode : function ( input )
+    {
+        var output = '';
+        var i      = 0;
+        var chr1;
+        var chr2;
+        var chr3;
+        var enc1;
+        var enc2;
+        var enc3;
+        var enc4;
+		
+
+        input = this._utf8_encode( input );
+
+        while( i < input.length )
+        {
+            chr1 = input.charCodeAt( i++ );
+            chr2 = input.charCodeAt( i++ );
+            chr3 = input.charCodeAt( i++ );
+
+            enc1 = chr1 >> 2;
+            enc2 = ( ( chr1 & 3  ) << 4 ) | ( chr2 >> 4 );
+            enc3 = ( ( chr2 & 15 ) << 2 ) | ( chr3 >> 6 );
+            enc4 = chr3 & 63;
+
+            if( isNaN( chr2 ) )
+            {
+                enc3 = enc4 = 64;
+            }
+            else if( isNaN( chr3 ) )
+            {
+                enc4 = 64;
+            }
+
+            output += this._keyStr.charAt( enc1 );
+            output += this._keyStr.charAt( enc2 );
+            output += this._keyStr.charAt( enc3 );
+            output += this._keyStr.charAt( enc4 );
+        }
+
+        return output;
+    },
+
+    decode : function ( input )
+    {
+        var output = '';
+        var i      = 0;
+        var chr1;
+        var chr2;
+        var chr3;
+        var enc1;
+        var enc2;
+        var enc3;
+        var enc4;
+
+        input = input.replace( /[^A-Za-z0-9\+\/\=]/g, "" );
+
+        while( i < input.length )
+        {
+            enc1 = this._keyStr.indexOf( input.charAt( i++ ) );
+            enc2 = this._keyStr.indexOf( input.charAt( i++ ) );
+            enc3 = this._keyStr.indexOf( input.charAt( i++ ) );
+            enc4 = this._keyStr.indexOf( input.charAt( i++ ) );
+
+            chr1 = ( enc1 << 2 ) | ( enc2 >> 4 );
+            chr2 = ( ( enc2 & 15 ) << 4 ) | ( enc3 >> 2 );
+            chr3 = ( ( enc3 & 3  ) << 6 ) | enc4;
+
+            output += String.fromCharCode( chr1 );
+
+            if( enc3 != 64 )
+            {
+                output += String.fromCharCode( chr2 );
+            }
+			
+            if( enc4 != 64 )
+            {
+                output += String.fromCharCode( chr3 );
+            }
+        }
+
+        output = this._utf8_decode( output );
+
+        return output;
+
+    },
+
+    _utf8_encode : function ( string )
+    {
+        string      = string.replace( /\r\n/g, "\n" );
+        var utftext = '';
+
+        for( var i = 0; i < string.length; i ++ )
+        {
+            var c = string.charCodeAt( i );
+
+            if( c < 128 )
+            {
+                utftext += String.fromCharCode( c );
+            }
+            else if( ( c > 127 ) && ( c < 2048 ) )
+            {
+                utftext += String.fromCharCode( ( c >> 6 ) | 192 );
+                utftext += String.fromCharCode( ( c & 63 ) | 128 );
+            }
+            else
+            {
+                utftext += String.fromCharCode( ( c >> 12 ) | 224 );
+                utftext += String.fromCharCode( ( ( c >> 6 ) & 63 ) | 128 );
+                utftext += String.fromCharCode( ( c & 63 ) | 128 );
+            }
+        }
+
+        return utftext;
+    },
+
+    _utf8_decode : function ( utftext )
+    {
+        var string = '';
+        var i      = 0;
+        var c      = 0;
+        var c1     = 0;
+        var c2     = 0;
+
+        while ( i < utftext.length )
+        {
+            c = utftext.charCodeAt( i );
+
+            if( c < 128 )
+            {
+                string += String.fromCharCode( c );
+                i ++;
+            }
+            else if( ( c > 191 ) && ( c < 224 ) )
+            {
+                c2      = utftext.charCodeAt( i + 1 );
+                string += String.fromCharCode( ( ( c & 31 ) << 6 ) | ( c2 & 63 ) );
+                i      += 2;
+            }
+            else
+            {
+                c2      = utftext.charCodeAt( i + 1 );
+                c3      = utftext.charCodeAt( i + 2 );
+                string += String.fromCharCode( ( ( c & 15 ) << 12 ) | ( ( c2 & 63 ) << 6 ) | ( c3 & 63 ) );
+                i      += 3;
+            }
+        }
+
+        return string;
+    }
+};
+/*
+jQuery(window).bind('beforeunload', function() {
+        var allEmpty = true;
+        jQuery('textarea').each(function() {
+            if((jQuery(this).val().trim() == '') || (jQuery(this).val().trim() == 'Bạn muốn nói gì?') || (jQuery(this).val().trim() == 'Viết bình luận') || (jQuery(this).val().trim() == 'Viết bình luận...') || (jQuery(this).val().trim() == '[text_default]') || (jQuery(this).val().trim() == 'Viết giới thiệu tại đây...') || (jQuery(this).val().trim() == 'Thông điệp chính') || (jQuery(this).val().trim() == 'Thông điệp bức ảnh bạn muốn chia sẻ')) {
+                allEmpty = true;
+                console.log(jQuery(this).attr('id') + " = " + jQuery(this).val().trim() + " allEmpty:"+ allEmpty);
+            } else {                
+                allEmpty = false;
+                console.log(jQuery(this).attr('id') + " = " + jQuery(this).val().trim() + " allEmpty:"+ allEmpty);
+                return false;
+            }
+                
+        });
+        console.log(" allEmpty:"+ allEmpty);
+        if (!allEmpty) {
+            return "Bạn đang có ít nhất một form chưa gửi.";
+        }
+    });
+    
+ cookies */
+ tag_mod_actions();
+ function tag_mod_actions() {
+    jQuery(".mrk-pu-vote").click(function(){
+        var element = jQuery(this);
+        var id = jQuery(element).attr('data-id');
+        jQuery.ajax({
+                type: "POST",
+                url: my_base_url + my_pligg_base + "/actions/ajax/ajaxLinkPUVote.php",
+                data: {
+                    'id' : id
+                },
+                success: function(result){
+                    result = result + '';
+                    result = result.replace(/^\s+/g, '');
+                    result = result.replace(/\s+$/g, '');
+ 
+                    if(result == '-1') {
+                        jQuery(".mrk-pu-vote").each(function() { jQuery(this).parent().remove(); });
+                    } else if(/^\d+\:\d+$/.test(result)) {
+                        result = result.split(':');
+  
+                        result[0] = parseInt(result[0]);
+                        result[1] = parseInt(result[1]); 
+                        
+                        jQuery("a","#vote_"+id).html(result[1]);
+                        jQuery(element).addClass('link-checked-green').css({cursor:"default", color:"#808080"}).html('<i></i> Đã tặng vote');
+                        
+                        if(result[0] < 1) {
+                            jQuery(".mrk-pu-vote").each(function() {
+                                var elm = jQuery(this);
+                                
+                                if(! elm.hasClass('link-checked-green')) {
+                                    elm.parent().remove();
+                                }
+                            });
+                        }
+                    } else {
+                        alert(result);
+                    }
+                },
+                error: function() {
+                    eval("var result = " +result);
+                    alert(result.msg);
+                }
+            });
+    });
+ }
+function set_cookie(n,v,d) {
+    var today = new Date();
+    var expire = new Date();
+    if (d==null || d==0) d=1;
+    expire.setTime(today.getTime() + 3600000*24*d);
+    document.cookie = n+"="+escape(v) + ";path=/;expires="+expire.toGMTString();
+}
+function get_cookie(n) {
+    var start = document.cookie.indexOf(n + "=");
+    var len = start + n.length + 1;
+    if ((!start) && (n != document.cookie.substring(0, n.length))) {
+        return null;
+    }
+    if (start == -1) return null;
+    var end = document.cookie.indexOf(";", len);
+    if (end == -1) end = document.cookie.length;
+    return unescape(document.cookie.substring(len, end));
+}
+function delete_cookie(name,path,domain) {
+    if (get_cookie(name)) document.cookie = name + "=" +
+        ((path) ? ";path=" + path : "") +
+        ((domain) ? ";domain=" + domain : "") +
+        ";expires=Thu, 01-Jan-1970 00:00:01 GMT";
+}
+/* toggle */
+function toggleBlock(id) {
+    var block = $j('#'+id);
+    $j(block).toggle();
+    return false;
+}
+function toggleButton(id) {
+    var button = $j('#'+id);
+    if ($j(button).attr("disabled")) {
+        $j(button).removeAttr("disabled");
+    } else {
+        $j(button).attr("disabled","true");
+    }
+    return false;
+}
+function toggleButtonClass(classname) {
+    var button = $j('.'+classname);
+    if ($j(button).attr("disabled")) {
+        $j(button).removeAttr("disabled");
+    } else {
+        $j(button).attr("disabled","true");
+    }
+    return false;
+}
+/* Ultilities */
+function setFocus(id) {
+    $j("#" + id).focus();
+}
+/* Show/hide comment outline */
+function toggleSubFeeds(feedId,show) {
+    if (show == 1) {
+        $j("#ftoggler-close-"+feedId).css("display","inline");
+        $j("#ftoggler-open-"+feedId).css("display","none");
+        $j("#fshort-"+feedId).hide();
+    } else {
+        $j("#ftoggler-open-"+feedId).css("display","inline");
+        $j("#ftoggler-close-"+feedId).css("display","none");
+        $j("#fshort-"+feedId).show();
+    }	
+    $j("#fdetails-"+feedId).slideToggle("fast");
+    return false;
+}
+/* ajax paging */
+function ajaxPaging(action,filter,page,return_id,query){
+    $j("#ajaxLoading").show();
+    if(query==null) {
+        query="";
+    }else{
+        query+="&";
+    }
+    if(filter!=null) 
+        query += "filter="+filter+"&";
+    query += "page=" + page;
+    $j.post(my_base_url+my_pligg_base+"/"+action, query, 
+        function(result) {
+            ajaxPagingCallback(result,return_id);
+        }
+        );
+    return false;
+}
+function ajaxPagingCallback(result,return_id){
+    $j("#"+return_id).html(result);
+    $j("#ajaxLoading").hide();
+}
+/* Link vote */
+var is_vote = 1;
+var timeOutPromoteFollowId = null;
+function vote(lId,value,type) {
+    var ok = 1;
+    if(value < 0) {
+        if (window.confirm('Báo link nội dung xấu?')) {
+            ok = 1;
+        } else {
+            ok = 0;
+        }
+    }
+    if (ok && is_vote) {
+        is_vote = 0;
+        $j("#ajaxLoading").show();
+        var query = "id=" + lId + "&value=" + value;
+        $j.post(my_base_url+my_pligg_base+"/ajaxLinkVote", query, 
+            function(result) {
+                is_vote = 1;
+                if (/ERROR:/.test(result)) {
+                    result = result.substring(7, result.length);
+
+                    if(result=="sms"){
+                        show_sms_active_box(result, 'vote');						 
+                    } else {
+                        window.alert(result);
+                    }
+                } else {
+                    if (value < 0 && type != "full") {
+                        $j("#news_item_"+lId).fadeOut("slow");
+                    } else if (value < 0 && type == "full") {
+                        $j("#link-"+lId+"-badded").show();
+                        $j("#link-"+lId+"-voter").remove();
+                        $j("#link-"+lId+"-report").remove();
+                    } else {
+                        $j("#link-"+lId+"-votes").html(result);
+                        $j("#link-"+lId+"-voter").html('<span class="btn-action voted"><i></i>Hot</span>');
+                        $j("#link-"+lId+"-report").remove();
+                    }
+                }
+                $j("#ajaxLoading").hide();
+            }
+            );
+    }
+    return false;
+}
+
+/**
+*	Friend
+*/
+var add_friend_active = 0;
+function addFriend(user_id,return_id,intro_id){
+    if(add_friend_active == 0) {
+        $j("#ajaxLoading").show();
+        add_friend_active = 1;
+        var query = "to_id=" + user_id;
+        $j.post(my_base_url+my_pligg_base+"/ajaxFriendFollow", query, 
+            function(result) {
+                if (/ERROR:/.test(result)) {
+                    result = result.substring(7, result.length);
+                    window.alert(result);
+                } else {
+                    if(return_id == 'user-follow') {
+                        $j("#"+return_id).html("<a onclick='return removeFriend("+user_id+",\""+return_id+"\");' title='Bỏ quan tâm' href='javascript://' class='nkt-button'><b class='unfollow'>Bỏ quan tâm</b></a>");
+                    } else if(return_id == 'mini-follow') {
+                        $j("#"+return_id).html("<a onclick='return removeFriend("+user_id+",\""+return_id+"\");' title='Bỏ quan tâm' href='javascript://' class='remove-friend'>Bỏ quan tâm</a>");
+                    }else {
+                        if(intro_id){
+                            $j("#"+return_id).html("<a onclick='return removeFriend("+user_id+",\""+return_id+"\","+intro_id+");' title='Bỏ quan tâm' href='javascript://' class='nkt-button'><b class='unfollow'>Bỏ quan tâm</b></a>");
+                        } else {
+                            $j("#"+return_id).html("<span class='greenie'>Đã quan tâm</span>").removeClass("btn-rounded");
+                        }
+                    }
+                }
+                $j("#ajaxLoading").hide();
+                add_friend_active = 0;
+            }
+            );
+    } else {
+        window.alert('Hệ thống đang xử lý, vui lòng đợi trong giây lát!');
+    }
+}
+var remove_friend_active = 0; 
+function removeFriend(user_id, return_id, intro_id){
+    if(window.confirm('Bạn có chắc chắn muốn bỏ quan tâm người này?')){
+        if(remove_friend_active == 0){
+            $j("#ajaxLoading").show();
+            remove_friend_active = 1;
+            var query = "followed_id=" + user_id;
+            $j.post(my_base_url+my_pligg_base+"/ajaxFriendUnfollow", query, 
+                function(result) {
+                    if (/ERROR:/.test(result)) {
+                        result = result.substring(7, result.length);
+                        window.alert(result);
+                    } else {
+                        if(return_id == 'user_suggest_follow') {
+                            $j("#"+return_id).html("<a onclick='return addFriend("+user_id+",\""+return_id+"\");' title='Quan tâm để cập nhật hoạt động' href='javascript://' class='inputsubmit'>Quan tâm</a>");
+                        } else if (return_id == 'unfollow_user_page'){
+                            $j("#"+return_id).html("<div class=\"btn-rounded-tr\"><a class=\"nkt-button\" href=\"javascript://\" onclick=\"return addFriend("+user_id+",'follow');\" title=\"Quan tâm để cập nhật hoạt động của người này\"><b>Quan tâm</b></a></div>").attr("id","follow").addClass("btn-rounded");
+                        } else {
+                            if(intro_id){
+                                $j("#"+return_id).html("<a onclick='return addFriend("+user_id+",\""+return_id+"\"," + intro_id + ");' title='Quan tâm để cập nhật hoạt động' href='javascript://' class='nkt-button'><b>Quan tâm</b></a>");
+                            } else {
+                                $j("#"+return_id).html("<a onclick='return addFriend("+user_id+",\""+return_id+"\");' title='Quan tâm để cập nhật hoạt động' href='javascript://' class='add-friend'>Quan tâm</a>");
+                            }
+                        }
+                    }
+                    $j("#ajaxLoading").hide();
+                    remove_friend_active = 0;
+                }
+                );
+        } else {
+            window.alert('Hệ thống đang xử lý, vui lòng đợi trong giây lát!');
+        }
+    }
+}
+// Ajax validator
+function checkField(type, fId, rId) {
+    $j("#ajaxLoading").show();
+    var value = $j("#"+fId).val();
+    var query = "type="+encodeURIComponent(type)+"&value="+encodeURIComponent(value);
+    $j("#"+rId).html("");
+    $j.post(my_base_url+my_pligg_base+"/ajaxValidator", query, 
+        function(result) {
+            checkFieldCallback(rId,result);
+        }
+        );
+}
+function checkFieldCallback(rId,result){
+    if (/ERROR:/.test(result)) {
+        result = result.substring(7, result.length);
+        $j("#"+rId).css("color","red");
+        $j("#"+rId).html(result);
+    } else {
+        $j("#"+rId).css("color","green");
+        $j("#"+rId).html(result);
+    }
+    $j("#ajaxLoading").hide();
+}
+//Ajax channel validator
+var check_valid_channel_active = 0;
+function validate_channel_name(type,cId,rId1,rId2){
+    if(check_valid_channel_active == 0){
+        var value = $j("#"+cId).val();
+        if(value.length >= 3 && value.length <= 50){
+            check_valid_channel_active = 1;
+            var query = "type="+encodeURIComponent(type)+"&value="+encodeURIComponent(value);
+            if(type == 'name'){
+                $j("#"+rId1).val("");
+                $j("#"+rId2).html("");
+            }else{
+                $j("#"+rId1).html("");
+                $j("#"+rId2).html("");
+            }
+            $j.post(my_base_url+my_pligg_base+"/ajaxValidatorChannel", query, 
+                function(result) {
+                    if(type == 'name'){
+                        $j("#"+rId1).val(result);
+                        $j("#"+rId2).html(result);
+                    }else{
+                        if (/ERROR:/.test(result)) {
+                            result = result.substring(7, result.length);
+                            $j("#"+rId1).html(result);
+                            $j("#"+rId2).html("nick-kênh");
+                        }else{
+                            $j("#"+rId2).html(result);
+                        }
+                    }
+                    check_valid_channel_active = 0;
+                }
+                );
+        }
+    }
+}
+/* Close announcement  */
+function ajaxCloseAnnouncement(rId){
+    $j.post(my_base_url+my_pligg_base+"/ajaxCloseAnnouncement", null, 
+        function(result) {
+            $j("#"+rId).remove();
+        }
+        );
+    return false;
+}
+function ajaxCloseNewFriends(rId,type){
+    $j("#ajaxLoading").show();
+    var query = "type=" + type;
+    $j.post(my_base_url+my_pligg_base+"/ajaxCloseNewFriends", query, 
+        function(result) {
+            $j("#"+rId).remove();
+            $j("#ajaxLoading").hide();
+        }
+        );
+    return false;
+}
+function ajaxCloseLandingPage(rId,para){
+    $j("#ajaxLoading").show();
+    var query = "para=" + para;
+    $j.post(my_base_url+my_pligg_base+"/ajaxCloseLandingPage", query, 
+        function(result) {
+            $j("#"+rId).remove();
+            $j("#ajaxLoading").hide();
+        }
+        );
+    return false;
+}
+/* Ham lay toa do cua 1 doi tuong (usage: var x = $j("#id").x();) */
+$j.fn.x = function(n) {
+    var result = null;
+    this.each(function() {
+        var o = this;
+        if (n === undefined) {
+            var x = 0;
+            if (o.offsetParent) {
+                while (o.offsetParent) {
+                    x += o.offsetLeft;
+                    o = o.offsetParent;
+                }
+            }
+            if (result === null) result = x;
+            else result = Math.min(result, x);
+        } else o.style.left = n + 'px';
+    });
+    return result;
+};
+$j.fn.y = function(n) {
+    var result = null;
+    this.each(function() {
+        var o = this;
+        if (n === undefined) {
+            var y = 0;
+            if (o.offsetParent) {
+                while (o.offsetParent) {
+                    y += o.offsetTop;
+                    o = o.offsetParent;
+                }
+            }
+            if (result === null) result = y;
+            else result = Math.min(result, y);
+
+        } else o.style.top = n + 'px';
+    });
+    return result;
+};
+/* show/hide dropdown menu */
+function hideDiv(id){
+    $j('#'+id).css("visibility","hidden");
+    $j('#'+id).css("display","none");
+}
+function showDiv(id){
+    $j('#'+id).css("visibility","visible");
+    $j('#'+id).css("display","block");
+}
+
+/* Show/Hide user info */
+function showUserInfo(obj, u, id) {
+    var infoId = "user-info-"+id;
+    setTimeout(function(){
+        showDiv(infoId)
+    },400);
+    var html = '<div id="inner-' + id + u + '">Loading...</div>';// inner div
+    if ($j("#"+infoId).html()=="") {// if not loaded yet then call ajax to load
+        $j("#"+infoId).append(html);
+        var innerId = 'inner-' + id + u;
+        var query = "user_id=" + u;
+        $j.post(my_base_url+my_pligg_base+"/ajaxMiniProfile", query, 
+            function(result) {
+                $j("#"+innerId).html(result);
+            }
+            );
+    }
+    return false;
+}
+var timerId = 0;
+function hideUserInfo(id) {
+    var infoId = "user-info-" + id;
+    timerId = setTimeout(function(){
+        hideDiv(infoId)
+    },400);
+    return false;
+}
+function holdUserInfo(id) {
+    var infoId = "user-info-" + id;
+    if ($j("#"+infoId).css('display') == 'block') {
+        clearTimeout(timerId);
+    }
+    return false;
+}
+/* Show/Hide embedded video */
+function showEmbedVideo(lId){
+    var toggler = $j("#show-embed-video-"+lId);
+    var togglerbtn = $j("#btn-show-embed-video-"+lId);
+    var vidDiv = $j("#embed-video-"+lId);
+    if(vidDiv.css("display")=="none"){
+        var loaded = 0;
+        var loading = "<div id='aloading-"+lId+"' style='text-align:center;'>"
+        + "<img src='" + my_temp_root + "images/loading/ajax-loader.gif'/>"
+        + "</div>";
+        $j(vidDiv).html(loading);
+        $j(vidDiv).show();
+        if(loaded==0) {
+            $j.post(my_base_url+my_pligg_base+"/ajaxVideoGetEmbedCode", "id="+lId, 
+                function(result) {
+                    vidDiv.html(result);
+                    $j(toggler).html("<img src='"+my_temp_root+"images/icons/stop_big.gif' align='bottom'/>");
+                    $j(toggler).attr('title','Stop');
+                    $j(togglerbtn).html('Tắt');
+                    loaded = 1;
+                }
+                );
+        }
+    } else {
+        $j(vidDiv).hide();
+        $j(toggler).html("<img src='"+my_temp_root+"images/icons/play_big.gif' align='bottom'/>");
+        $j(toggler).attr('title','Play');
+        $j(togglerbtn).html('Bật');
+    }
+    return false;
+}
+/* Use in Submit forms */
+function selectThumb(thumb){
+    $j("#thumb_path").val(thumb);
+}
+/* Copy to clipboard function */
+function copyToClipboard(obj) {
+    var ref = $j(obj);
+    ref.select();
+    var copiedText = ref.val();
+    $j.copy(copiedText);	
+    var mess = "<strong>Đã copy! Bấm Ctrl+V để chia sẻ link với bạn bè.</strong>";		
+    var position = ref.offset();
+    var top	 = parseInt(position.top) + parseInt(ref.height());
+    $j('#clipboard_alert').remove();
+    $j('body').append("<div id='clipboard_alert' style='top:"+top+"px;left:"+position.left+"px;position:absolute;opacity:0;filter:alpha(opacity=0);background:#EEEFB3;border:1px solid #AFAFAF;padding:5px;color:#000;z-index:9999;font-size:11px;line-height:1.4em'>"+mess+"</div>");
+    $j('#clipboard_alert').fadeTo("slow",1,function(){
+        $j(this).fadeTo(2000,0, function(){
+            $j(this).remove();
+        });
+    });
+    ref.select();
+}
+/* Load a box on sidebar using ajax */
+function ajaxSidebarLoadBox(action,query,rid) {
+//    console.log('ajaxSidebarLoadBox');
+    if(rid != 'link-author-more'){
+        $j("#"+rid).html("<div align='center' valign='middle'><img src='"+my_temp_root+"images/loading/fb.gif' align='center'/></div>");
+    }
+    $j.post(my_base_url+my_pligg_base+action, query,
+        function(result) {
+            if(rid == 'link-author-more'){
+                $j("#"+rid).append(result);
+            }else{
+                $j("#"+rid).html(result);
+            }
+            $j('.mrk-reshareLink',$j("#"+rid)[0]).unbind('click');
+            $j('.mrk-reshareLink',$j("#"+rid)[0]).click($j.ajaxBoxReshare);
+        }
+        );
+
+    return false;
+}
+function ajaxSidebarLoadBoxTopicMore(action,query,rid) {
+//    console.log('ajaxSidebarLoadBoxTopicMore');
+    $j("#"+rid).html("<div align='center' valign='middle'><img src='"+my_temp_root+"images/loading/fb.gif' align='center'/></div>");
+    $j.post(my_base_url+my_pligg_base+action, query,
+        function(result) {
+            eval("var result="+result);
+            $j("#"+rid).html(result.sidebar_topic_more);
+            $j("#"+rid + "_button").html(result.button_topic_more);
+            $j("#"+rid + "_button2").html(result.button_topic_more2);
+            $j('.mrk-reshareLink',$j("#"+rid)[0]).unbind('click');
+            $j('.mrk-reshareLink',$j("#"+rid)[0]).click($j.ajaxBoxReshare);
+        }
+
+        );
+    return false;
+}
+var bitly_link = '';
+function ajaxSidebarLoadBoxBitly(action,query,rid) {
+    $j.getJSON(my_base_url+my_pligg_base+action,query,
+        function(data) {
+            $j("#"+rid).append('<a href="'+data.link_bitly.href+'+" target="_blank" title="Xem chi tiết thống kê số clicks">'+data.link_bitly.count+' clicks</a>');
+            bitly_link = data.link_bitly.href;
+			
+        }
+        );
+    return false;
+}
+var tiny_link = '';
+function ajaxSidebarLoadBoxTinyUrl(action,query,rid) {
+    $j.getJSON(my_base_url+my_pligg_base+action,query,
+        function(data) {
+            $j("#"+rid).append('<a href="'+data.link_googl.detail+'" target="_blank" title="Xem chi tiết thống kê số clicks">'+data.link_googl.count+' clicks</a>');
+            tiny_link = data.link_googl.href;
+			
+        }
+        );
+    return false;
+}
+function close_new_link_popup() {
+    $j('.notifications-box-popup').hide();
+    deleteNewLinkPopUp();
+}
+function active_notifyicon() {
+    $j(".notify_icon").mouseover(function(){
+        $j(this).addClass('notify_icon_hover');
+    })
+    .mouseout(function() {
+        $j(this).removeClass('notify_icon_hover');
+    });
+}
+function active_icon_hover() {
+    // Left blast form
+    $j("#presence_blast_tab").mouseover(function(){
+        $j(this).addClass('presence_blast_hover');
+    })
+    .mouseout(function() {
+        $j(this).removeClass('presence_blast_hover');
+    });	
+    // Right write note
+    $j("#presence_bar_right > .note").mouseover(function(){
+        $j(this).addClass('note_hover');
+    })
+    .mouseout(function() {
+        $j(this).removeClass('note_hover');
+    });
+    // Right filter
+    $j("#presence_filter_tab").mouseover(function(){
+        $j(this).addClass('presence_filter_hover');
+    })
+    .mouseout(function() {
+        $j(this).removeClass('presence_filter_hover');
+    });
+    // Right blast
+    $j("#presence_bar_right > .blast").mouseover(function(){
+        $j(this).addClass('hover');
+    })
+    .mouseout(function() {
+        $j(this).removeClass('hover');
+    });
+    $j("#presence_bar_left > .taskbar-item").mouseover(function(){
+        $j(this).addClass('taskbar-item-hover');
+    })
+    .mouseout(function() {
+        $j(this).removeClass('taskbar-item-hover');
+    });
+}
+function show_blast_update_form(){
+    var update_blast_box = $j("#presence_blast");
+    var target = $j("#presence_blast_tab");
+    var content = $j("#presence_blast_form_content");
+    if (update_blast_box.css('display') == 'none') {
+        content.addClass('presence_blast_loading');
+        content.html("<img src='"+my_pligg_base+"/templates/images/loading/global.gif' />");
+        $j.getJSON(my_base_url+my_pligg_base+"/ajaxBlastTaskbar?action=get",
+            function(data){
+                if(/ERROR/.test(data.error)) {
+                    window.alert(data.error);
+                } else {
+                    var html = "";
+                    html += "<div class=\"rows clearfix\">";
+                    html += "<div class=\"left\"><img src='" + data.avatar + "' style=\"border: solid 1px #EEE; padding: 1px\"></div>";
+                    html += "<div style=\"padding-left: 42px; font-size: 12px\">" + data.blast_title + "</div>";
+                    html += "</div>";
+                    html += "<div class=\"rows\"><textarea id=\"presence_blast_content\" name=\"presence_blast_content\"></textarea></div>";
+                    html += "<div><input type=\"button\" id=\"presence_blast_button\" name=\"presence_blast_button\" value=\"Gửi\" onclick=\"return update_blast_taskbar();\" class=\"inputsubmit\" /></div>";
+                    content.removeClass('presence_blast_loading');
+                    content.html(html);
+                }
+            });
+        update_blast_box.show();
+        target.addClass('presence_blast_active');
+    } else {
+        update_blast_box.hide();
+        target.removeClass('presence_blast_active');
+    }
+    return false;
+}
+function hide_blast_update_form(){
+    $j("#presence_blast").hide();
+    $j("#presence_blast_tab").removeClass('presence_blast_active');
+    return false;
+}
+function show_filter_link(){
+    var filter_link = $j("#presence_filter");
+    var target = $j("#presence_filter_tab");
+    if (filter_link.css('display') == 'none') {
+        filter_link.show();
+        target.addClass('presence_filter_active');
+    } else {
+        filter_link.hide();
+        target.removeClass('presence_filter_active');
+    }
+}
+function update_blast_taskbar(){
+    var blast = "";
+    $j("#ajaxLoading").show();
+    $j('#presence_blast_button').attr("disabled","disabled");
+    blast += $j("#presence_blast_content").val();
+	
+    var query = "blast=" + encodeURIComponent(blast);
+    $j.post(my_base_url+my_pligg_base+"/ajaxBlast", query, 
+        function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);
+            } else {
+                show_blast_update_form();
+            }
+            $j("#ajaxLoading").hide();
+            $j('#presence_blast_button').attr("disabled","");
+        }
+        );
+    return false;
+}
+
+function share2Blast() {
+    var blast = "";
+    var attach = "";
+    var link_origin = "";
+    var r = "no";
+    var tp = "";
+    var t = "no";
+    $j("#blast-loading").show();
+    $j('#blast-submit').attr("disabled","true");
+    blast += $j("#blast_content").val();
+    attach += $j("#link_url").val();
+    link_origin += $j("#link_origin").val();
+    
+    if($j("#pwd_remember:checked").val() != null){
+        r = "yes";
+    }
+    var query = "blast=" + encodeURIComponent(blast) + "&link_origin=" + encodeURIComponent(link_origin) + "&attach=" + encodeURIComponent(attach) + "&t=" + t + "&remember=" + r + "&tp=" + encodeURIComponent(tp);
+    $j.post(my_base_url+my_pligg_base+"/ajaxBlast", query, 
+        function(result) {
+            share2BlastCallback(result);
+        }
+        );
+    return false;
+}
+function share2BlastCallback(result){
+    if (/ERROR/.test(result)) {
+        result = result.substring(7, result.length);
+        window.alert(result);
+        $j('#blast-submit').removeAttr("disabled");
+    } else {
+        $j('#share-message').append("<strong>Chia sẻ thành công!</strong>");
+        $j('#share-message').addClass("message");
+        $j('#share-message').fadeTo("slow",1,function() {
+            $j('#share-message').fadeTo(1000,0, function() {
+                tb_remove();
+            });
+        });
+    }
+    $j("#blast-loading").hide();
+    return false;
+}
+//Xu ly su kien chuot
+function onPressAccount(id, e){
+    var keynum;
+    if(window.event){
+        keynum = e.keyCode;
+    }else if(e.which){
+        keynum = e.which;
+    }
+    if( keynum == 13 && id == 1 ) {			// Truong hop tao tai khoan moi
+        $j("#linkhay_email_post").focus();				
+    }else if( keynum == 13 && id == 2 ){
+        ajaxChangeName(1);
+    }else if(keynum == 13 && id == 3){		// Truong hop noi voi account tren linkhay
+        $j("#existing_password").focus();
+    }else if(keynum == 13 && id == 4){
+        onJoinAccount(1);
+    }else if(keynum == 13 && id == 5){		// Truong hop cap nhat Email
+        updateEmailBig4();
+    }else if(keynum == 13 && id == 6){		// Truong hop noi voi account tren linkhay
+        $j("#existing_password").focus();
+    }else if(keynum == 13 && id == 7){
+        onJoinAccount(2);
+    }
+}
+//Cap nhat Email Big4
+function updateEmailBig4(){
+    var linkhay_open_id 	= 	"";
+    var linkhay_user_id 	= 	"";
+    var linkhay_service_id 	= 	"";
+    var linkhay_email_post	=	"";
+    linkhay_open_id 		+= 	$j( "#linkhay_open_id" ).val();
+    linkhay_user_id 		+= 	$j( "#linkhay_user_id" ).val();
+    linkhay_service_id 		+= 	$j( "#linkhay_service_id" ).val();
+    linkhay_email_post		+=	$j( "#linkhay_email_post" ).val();
+    $j("#submit-loading").show();
+    $j('#linkhay_name_submit').attr("disabled","true");	
+    var query = "linkhay_email_post=" + encodeURIComponent(linkhay_email_post) + "&linkhay_open_id=" + encodeURIComponent(linkhay_open_id) + "&linkhay_user_id=" + encodeURIComponent(linkhay_user_id) + "&linkhay_service_id=" + encodeURIComponent(linkhay_service_id);
+    $j.post(my_base_url + my_pligg_base + "/ajaxUpdateEmailBig4", query, 
+        function(result) {
+            ajaxUpdateEmailCallback(result);
+        }, "json"
+        );
+    return false;
+}
+function ajaxUpdateEmailCallback(result){
+    if( result['error_u'] == 1 ){
+        $j("#error_username").html( result['str_u'] );
+        $j("#error_username").css("display", "block");
+        $j("#error_email").html("");
+        $j("#error_email").css("display", "none");
+    }else if( result['error_e'] == 2 ){
+        $j("#error_username").html("");
+        $j("#error_username").css("display", "none");
+        $j("#error_email").html( result['str_e'] );
+        $j("#error_email").css("display", "block");
+    }else {
+        //Redirect
+        $j("#submit-loading").hide();
+        window.close();
+        if (window.opener && !window.opener.closed) {
+            window.opener.location.reload();
+        } 
+    }
+    $j('#linkhay_name_submit').removeAttr("disabled");
+    $j("#submit-loading").hide();
+    return false;
+}
+//Submit form cho phep join voi account linkhay
+function onJoinAccount(type){
+    if(type == 1){
+        $j("#submit-loading-join").show();
+        $j('#join_account').attr("disabled","true");
+        $j("#show_connect").submit();
+    }else{
+        $j("#submit-loading-join-2").show();
+        $j('#join_account_2').attr("disabled","true");
+        $j("#show_connect_2").submit();
+    }
+}
+/* Change name by Facebook and Twitter and openid registeration */
+function ajaxChangeName(cancel) {
+    var linkhay_username 		= 	"";
+    var linkhay_fullname 		= 	"";
+    var linkhay_avatar 			= 	"";
+    var linkhay_open_id 		= 	"";
+    var linkhay_service 		= 	"";
+    var linkhay_publicemail		=	"";
+    var linkhay_sessionkey		=	"";
+    var linkhay_email			=	"";
+    var linkhay_password		= 	"";
+    var linkhay_confirm_password= 	"";
+    $j("#submit-loading").show();
+    $j('#linkhay_name_submit').attr("disabled","true");	
+    linkhay_username 		+= 	$j( "#linkhay_username_post" ).val();
+    linkhay_fullname 		+= 	$j( "#linkhay_fullname" ).val();
+    linkhay_avatar 			+= 	$j( "#linkhay_avatar" ).val();
+    linkhay_open_id 		+= 	$j( "#linkhay_open_id" ).val();
+    linkhay_service 		+= 	$j( "#linkhay_service" ).val();
+    linkhay_sessionkey		+=	$j( "#linkhay_sessionkey" ).val();
+    linkhay_publicemail		+=	$j( "#linkhay_publicemail" ).val();
+    linkhay_email			+=	$j( "#linkhay_email_post" ).val();
+    linkhay_password 		+= 	$j( "#linkhay_password_post" ).val();
+    linkhay_confirm_password +=	$j( "#linkhay_confirm_password_post" ).val();
+    if(cancel == 0) linkhay_username = "";
+    var query = "linkhay_email="+ encodeURIComponent(linkhay_email) +"&linkhay_username=" + encodeURIComponent(linkhay_username) + "&linkhay_fullname=" + encodeURIComponent(linkhay_fullname) + "&linkhay_avatar=" + encodeURIComponent(linkhay_avatar) + "&linkhay_open_id=" + encodeURIComponent(linkhay_open_id) + "&linkhay_service=" + encodeURIComponent(linkhay_service) + "&linkhay_publicemail=" + encodeURIComponent(linkhay_publicemail) + "&linkhay_sessionkey=" + encodeURIComponent(linkhay_sessionkey)
+    + "&linkhay_password=" + encodeURIComponent(linkhay_password) + "&linkhay_confirm_password=" + encodeURIComponent(linkhay_confirm_password);
+    $j.post(my_base_url+my_pligg_base+"/ajaxChangeName", query, 
+        function(result) {
+            ajaxChangeNameCallback(result);
+        }, "json"
+        );
+    return false;
+}
+/*Callback for change name by Facebook and Twitter and openid registeration*/
+function ajaxChangeNameCallback(result){
+    if( result['error_u'] == 1 || result['error_e'] == 2 || result['error_p'] == 3){
+        if( result['error_u'] == 1 ){
+            $j("#error_username").html( result['str_u'] );
+            $j("#error_username").css("display", "block");
+        }else{
+            $j("#error_username").html("");
+            $j("#error_username").css("display", "none");
+        };
+        if( result['error_e'] == 2 ){
+            $j("#error_email").html( result['str_e'] );
+            $j("#error_email").css("display", "block");
+        }else{
+            $j("#error_email").html("");
+            $j("#error_email").css("display", "none");
+        }
+        if( result['error_p'] == 3 ){
+            if( result['error_p_confirm'] == 1 ){
+                $j("#error_confirm_password").html( result['str_p'] );
+                $j("#error_confirm_password").css("display", "block");   
+                $j("#error_password").html();
+                $j("#error_password").css("display", "none");                            
+            } else {
+                $j("#error_password").html( result['str_p'] );
+                $j("#error_password").css("display", "block");
+                $j("#error_confirm_password").html();
+                $j("#error_confirm_password").css("display", "none"); 
+            }
+        }else{
+            $j("#error_password").html("");
+            $j("#error_password").css("display", "none");
+        }
+    }else {
+        $j('#connect-message').append("<strong>Tạo tài khoản thành công!</strong>");
+        $j('#connect-message').fadeTo("slow",1,function() {
+            $j('#connect-message').fadeTo(1000,0, function() {
+                tb_remove();
+            });
+        });
+        //Redirect
+        $j("#submit-loading").hide();
+        window.close();
+        if (window.opener && !window.opener.closed) {
+            window.opener.location.reload();
+        } 
+    }
+    $j('#linkhay_name_submit').removeAttr("disabled");
+    $j("#submit-loading").hide();
+    return false;
+}
+
+// Check all contact item checkbox in invite from email page
+function checkAll(value) {          
+    $j("form#invite_email_form * input[type='checkbox']").each(function() {
+        this.checked = (value==1) ? true:false;
+    });
+    return false;
+}
+function ignore_filter_comment_author(userid){
+    $j('#user_filter_'+userid).find(".checkbox").addClass("checkbox_click");
+    var query = 'userid=' + userid;
+    $j.post(my_base_url+my_pligg_base+"/ajaxCommentSubcribeAuthor", query, 
+        function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);
+            } else{
+                $j('#user_filter_'+userid).fadeOut();
+            }
+        }
+        );	
+    return false;
+}
+//For filter user & domain
+function ignore_filter_user(userid){
+    $j('#user_filter_'+userid).find(".checkbox").addClass("checkbox_click");
+    var query = 'userid=' + userid;
+    $j.post(my_base_url+my_pligg_base+"/ajaxLinkSubcribeAuthor", query, 
+        function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);
+            } else{
+                $j('#user_filter_'+userid).fadeOut();
+            }
+        }
+        );
+    return false;
+}
+function ignore_filter_user_all(userid){
+    $j('#user_filter_'+userid).find(".checkbox").addClass("checkbox_click");
+    var query = 'userid=' + userid;
+    $j.post(my_base_url+my_pligg_base+"/ajaxUserSubcribeAuthorAll", query, 
+        function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);
+            } else{
+                $j('#user_filter_'+userid).fadeOut();
+            }
+        }
+        );
+    return false;
+}
+function ignore_filter_domain(domain_id,domain){
+    $j('#domain_filter_'+domain_id).find(".checkbox").addClass("checkbox_click");
+    var query = 'domain=' + domain;
+    $j.post(my_base_url+my_pligg_base+"/ajaxLinkSubcribeDomain", query, 
+        function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);
+            } else{
+                $j('#domain_filter_'+domain_id).fadeOut();
+            }
+        }
+        );
+    return false;
+}
+
+//Subcribe Channel
+function ajax_channel_subcribe(channel_id,from_service,repending){
+    $j("#ajaxLoading").show();
+    var query = "id=" + channel_id;
+    if(repending != null) query = query + "&repending=" + repending;
+    $j.post(my_base_url+my_pligg_base+"/ajaxChannelSubcribe", query, 
+        function(result) {			
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);
+            } else {
+                if(from_service){
+                    if(from_service == "mini-profile"){
+                        $j('#mini-channel-profile-' + channel_id).html('<div class="channel-unsubcribe"><a href="javascript://" onclick="ajax_channel_unsubcribe(' + channel_id + ',\'mini-profile\');" title="Bỏ nhận tin từ kênh">Bỏ quan tâm kênh này</a></div>');
+                    }else if(from_service == "repending"){
+                        $j("#btn_channel_repending").remove();
+                    }else if(from_service == "mini-profile-repending"){
+                        $j('#mini-channel-repending-' + channel_id).remove();
+                    }
+                } else {
+                    $j("#btn_channel_subcribe").html("<span class='greenie'>Đã quan tâm</span>");
+                    $j("#btn_channel_subcribe").removeClass('btn-rounded');
+                }
+            }
+            $j("#ajaxLoading").hide();
+        }
+        );
+    return false;
+}
+//Unsubcribe Channel
+function ajax_channel_unsubcribe(channel_id,from_service){
+    if(window.confirm('Bạn muốn bỏ quan tâm tin tức từ kênh này?')){
+        $j("#ajaxLoading").show();
+        var query = "id=" + channel_id;
+        $j.post(my_base_url+my_pligg_base+"/ajaxChannelUnsubcribe", query, 
+            function(result) {
+                if (/ERROR/.test(result)) {
+                    result = result.substring(7, result.length);
+                    window.alert(result);
+                } else {
+                    if(from_service) {
+                        if(from_service == "mini-profile"){
+                            $j('#mini-channel-profile-' + channel_id).html('<a href="javascript://" onclick="ajax_channel_subcribe(' + channel_id + ',\'mini-profile\');" title="Nhận tin từ kênh này"><img src="' + my_base_url + my_pligg_base + '/templates/images/channel-follow.gif"/></a>');
+                        }else if(from_service == "homepage"){
+                            $j('#homepage_follow_channel_' + channel_id).remove();
+                            $j('#li_small_homepage_' + channel_id).remove();
+                        }else if(from_service == 'sidebar'){
+                            $j('#followchannel_' + channel_id).remove();
+                        }
+                    } else {
+                        $j("#btn_channel_unsubcribe").remove();
+                    }
+                }
+                $j("#ajaxLoading").hide();
+            }
+            );
+    }
+    return false;
+}
+//Admin process Unsubcribe channel
+function ajax_admin_channel_unsubcribe(userid,channel_id){
+    if (window.confirm('Bạn muốn loại bỏ người dùng này?')) {
+        $j("#ajaxLoading").show();
+        var query = "id=" + channel_id + "&uid=" + userid;
+        $j.post(my_base_url+my_pligg_base+"/ajaxChannelModUnsubcriber", query, 
+            function(result) {
+                if (/ERROR/.test(result)) {
+                    result = result.substring(7, result.length);
+                    window.alert(result);
+                } else {
+                    $j("#subcribers_channel_set_unsubcribe_" + userid).addClass("greenie").html("Đã loại bỏ");
+                    $j("#subcribers_channel_set_admin_" + userid).remove();
+                }
+                $j("#ajaxLoading").hide();
+            }
+            );
+    }
+    return false;
+}
+//Admin process recover user
+function ajax_admin_channel_recover(userid,channel_id){
+    $j("#ajaxLoading").show();
+    var query = "id=" + channel_id + "&uid=" + userid;
+    $j.post(my_base_url+my_pligg_base+"/ajaxChannelModRecover", query, 
+        function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);
+            } else {
+                $j("#subcribers_channel_recover_" + userid).addClass("greenie").html("Đã khôi phục");
+            }
+            $j("#ajaxLoading").hide();
+        }
+        );
+    return false;
+}
+//Admin process pending user
+function ajax_admin_channel_pending(userid,channel_id,status){
+    $j("#ajaxLoading").show();
+    var query = "id=" + channel_id + "&uid=" + userid + "&status=" + status;
+    $j.post(my_base_url+my_pligg_base+"/ajaxChannelModPending", query, 
+        function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);
+            } else {
+                if(status == 1){
+                    $j("#subcribers_channel_accept_" + userid).addClass("greenie").html("Đã chấp nhận");
+                    $j("#subcribers_channel_ignore_" + userid).remove();
+                }else{
+                    $j("#subcribers_channel_accept_" + userid).addClass("greenie").html("Đã loại bỏ");
+                    $j("#subcribers_channel_ignore_" + userid).remove();
+                }
+            }
+            $j("#ajaxLoading").hide();
+        }
+        );
+    return false;
+}
+//Admin process set admin channel
+function ajax_admin_channel_set_admin(userid,channel_id,type){
+    $j("#ajaxLoading").show();
+    var query = "id=" + channel_id + "&uid=" + userid + "&type=" + type;
+    $j.post(my_base_url+my_pligg_base+"/ajaxChannelModSetAdmin", query, 
+        function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);
+            } else {
+                $j("#subcribers_channel_set_admin_" + userid).addClass("greenie");
+                if(type == 'add'){
+                    $j("#subcribers_channel_set_admin_" + userid).html("Đã là Mod");
+                    $j("#subcribers_channel_set_unsubcribe_" + userid).remove();
+                }else if(type == 'minus'){
+                    $j("#subcribers_channel_unset_admin_" + userid).html("Đã bỏ Mod");
+                }
+            }
+            $j("#ajaxLoading").hide();
+        }
+        );
+    return false;
+}
+//popup for channel - Xuan Anh - 06/2012 
+function auto_load_popup_channel_qtk() {
+    if(typeof jQuery == 'undefined' || typeof jQuery.fn.osc_scroller == 'undefined') {
+        setTimeout(auto_load_popup_channel_qtk, 100);
+        return;
+    }
+                
+    $j = jQuery.noConflict();
+    $j(".friend-channel-show-popup-qtk").click(function(){
+        var uid = $j(this).attr('rel');
+        $j.ajax({
+            type:"POST",
+            url:my_base_url + my_pligg_base +"/actions/ajax/ajaxChannelPopupFriendQTK.php", 
+            data:{
+                uid : uid
+            }, 
+            success: function (data){ 
+                eval('var data = ' + data);
+                $j('body').append(data.content);
+                resize_fb_popup_channel();
+            }
+        });
+    });
+}
+
+function listEditComment(){
+    $j = jQuery.noConflict();
+    $j('.lh-edited').unbind('click');
+    $j('.lh-edited').click(function(){
+        var is_feed_or_link = $j(this).attr('rel');
+        if(is_feed_or_link && is_feed_or_link == 'is_feed'){
+            is_feed_or_link = 1;
+        } else {
+            is_feed_or_link = 0;
+        }
+        var cmtId = $j(this).attr('rev');
+        $j.ajax({
+            type:"POST",
+            url:my_pligg_base+"/ajaxGetCommentLog",
+            data:{
+                comment_id : cmtId,
+                is_feed_comment : is_feed_or_link
+            },
+            success: function (data){
+                eval('var data = ' + data);
+                $j('body').append(data.html);
+                resize_popup();
+                auto_load_popup_scroller();
+            }
+        });
+    });
+};
+
+function auto_load_popup_scroller(){
+    if(typeof jQuery == 'undefined' || typeof jQuery.fn.osc_scroller == "undefined") {
+        setTimeout(auto_load_popup_scroller, 100);
+        return;
+    }
+
+    jQuery(".close-chip-popup-follow").click(function(){
+        jQuery(".new-chip-popup-follow").remove();
+    });
+    
+    jQuery(".main-content-pop-follow").osc_scroller({
+        scrolling : true
+    });
+            
+}
+
+function resize_popup() {
+    var dim = getSceneDim();
+    var margin_top = (dim.h - jQuery('.wrap-popup-bg-opacity-follow').height() )/2;
+    jQuery('.wrap-popup-bg-opacity-follow').css('margin-top',margin_top + 'px');
+}
+
+jQuery(function() {
+    auto_load_popup_channel_qtk();
+    listEditComment();
+});
+
+//end - Xuan Anh 
+//For channel
+var timerShowChannel = new Array();
+var timerHideChannel = new Array();
+function showChannelInfo(inputid,obj,channelid){
+    var channel_hover_div = $j("#"+inputid+channelid);
+    var left = $j(obj).offset().left - 5;
+    var top = $j(obj).offset().top + 60;
+    if (channel_hover_div.length > 0) {
+        channel_hover_div.css({
+            top: top, 
+            left: left
+        });
+        timerShowChannel[channelid] = setTimeout(function(){
+            showDiv(inputid+channelid)
+        },500);
+    } else {
+        var div_hover = $j("<div/>").attr({
+            "id":"channel_hover_"+channelid, 
+            "class":"channel-hover channel-hover-load"
+        });
+        div_hover.html('<div class="tail"><img alt="" src="'+my_temp_root+'images/blank.gif"></div><div class="channel-detail clearfix"><span class="text-load">Loading...</span></div>');
+        div_hover.css({
+            top: top, 
+            left: left
+        });
+        $j("body").append(div_hover);
+        var query = "channelid=" + channelid;
+        $j.post(my_base_url+my_pligg_base+"/ajaxChannelProfile", query, 
+            function(result) {
+                div_hover.removeClass("channel-hover-load");
+                div_hover.html(result);
+                div_hover.mouseover(function(){
+                    holdChannelInfo('channel_hover_',channelid);
+                });
+                div_hover.mouseout(function(){
+                    hideChannelInfo('channel_hover_',channelid);
+                });
+                //Reload thickbox
+                $j('.thickbox').each(function(i) {
+                    $j(this).unbind('click');
+                });
+                tb_init('a.thickbox, area.thickbox, input.thickbox');
+            }
+            );
+    }	
+    return false;
+}
+function hideChannelInfo(inputid,channelid){
+    clearTimeout(timerShowChannel[channelid]);
+    timerHideChannel[channelid] = setTimeout(function(){
+        hideDiv(inputid+channelid)
+    },100);
+    return false;
+}
+function holdChannelInfo(inputid,channelid) {
+    clearTimeout(timerHideChannel[channelid]);
+    if ($j("#"+inputid+channelid).css('display') == 'none') {
+        showDiv(inputid+channelid);
+    }
+    return false;
+}
+
+//Ajax sort subcribe channel
+function ajax_sort_subcriber_channel(channel_id,filter){
+    $j("#ajaxLoading").show();
+    var page_normal = $j("#page_normal").val();
+    var query = "channel_id=" + channel_id + "&filter=" + filter + "&page="+page_normal;
+    $j.post(my_base_url+my_pligg_base+"/ajaxChannelSubcriberSort", query, 
+        function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);
+            } else {
+                //Process result
+                if(filter == "az"){
+                    $j("#filter_menu").html('<a class="a1" title="Sắp xếp theo thứ tự mới đến cũ" onclick="ajax_sort_subcriber_channel('+ channel_id + ',\'newest\');" href="javascript://">Mới</a> | <a class="a1 select" title="Sắp xếp theo thứ tự A-Z" href="javascript://">A-Z</a>');
+                }else if(filter == "newest"){
+                    $j("#filter_menu").html('<a class="a1 select" title="Sắp xếp theo thứ tự mới đến cũ" href="javascript://">Mới</a> | <a class="a1" title="Sắp xếp theo thứ tự A-Z" onclick="ajax_sort_subcriber_channel(' + channel_id + ',\'az\');" href="javascript://">A-Z</a>');
+				
+                }
+                $j("#list_normal_subcriber_channel").html(result);
+            }
+            $j("#ajaxLoading").hide();
+        }	
+        );
+    return false;
+}
+function ajax_mailbox_agree(message_id,channel_id,sender_name,sender_url,channel_name,channel_url){
+    //Process
+    var query = "id=" + channel_id + "&message_id=" + message_id;
+    $j("#invite_loading_" + message_id).show();
+    $j.post(my_base_url+my_pligg_base+"/ajaxChannelSubcribe", query, 
+        function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                $j("#invite_loading_" + message_id).hide();
+                window.alert(result);
+            } else{
+                //Inner HTML
+                $j('#mailbox_invite_channel_' + message_id).addClass('message');
+                $j('#mailbox_invite_channel_' + message_id).html('<div>Bạn vừa đồng ý tham gia kênh <a href="' + channel_url + '">' + channel_name + '</a> của <a href="' + sender_url + '">' + sender_name + '</a></div>');
+                $j("#invite_loading_" + message_id).hide();
+            }
+        }
+        );
+    return false;
+}
+function ajax_mailbox_disagree(message_id,sender_name,sender_url,channel_name,channel_url){
+    //Process
+    var query = "message_id=" + message_id;
+    $j("#invite_loading_" + message_id).show();
+    $j.post(my_base_url+my_pligg_base+"/ajaxChannelIgnoreInvite", query, 
+        function(result) {
+            //Inner HTML
+            $j('#mailbox_invite_channel_' + message_id).addClass('message');
+            $j('#mailbox_invite_channel_' + message_id).html('<div>Bạn vừa từ chối tham gia kênh <a href="' + channel_url + '">' + channel_name + '</a> của <a href="' + sender_url + '">' + sender_name + '</a></div>');
+            $j("#invite_loading_" + message_id).hide();
+        }
+        );
+    return false;
+}
+function RegEvent_NewsItem(){//reload news-item event after ajax return
+    //News item hover	
+    jQuery(".news-item").live('mouseover mouseout', function(event) {
+        event.preventDefault();
+        var obj = jQuery(this);
+        if(event.type=='mouseover') {
+            obj.addClass('news-item-hover');
+        } else {
+            obj.removeClass('news-item-hover');
+        }
+    });
+    jQuery('.vote').live('click', function(event){
+        event.preventDefault();
+        var o = jQuery(this);
+        
+        var p = o.closest('div');
+        var number_vote = p.find('.hot-count-wrap');
+        var link_id = p.attr('id').replace('vote_','');
+        var loading = jQuery("#ajaxLoading");
+        loading.show();
+        var query = "id=" + link_id + "&value=1";
+
+        var is_48h_link = parseInt(o.attr('link48hranked')) === 1;
+        
+        if(is_48h_link) {
+            var link_48h_ranked_ids = [];
+            
+            o.closest('.link-48h-ranked').parent().find('.link-48h-ranked').each(function(){
+                if(! jQuery(this).attr('id')) {
+                    return;
+                }
+                
+                var lid = parseInt(jQuery(this).attr('id').replace(/^.+\_(\d+)$/i, '$1'));
+                
+                if(!isNaN(lid) && lid > 0) {
+                    link_48h_ranked_ids.push(lid);
+                }
+            });
+            
+            if(link_48h_ranked_ids.length > 0) {
+                link_48h_ranked_ids = link_48h_ranked_ids.join(',');
+            } else {
+                link_48h_ranked_ids = '';
+            }
+            
+            query += '&getlink48hranked=1&link48hranked=' + link_48h_ranked_ids;
+        }
+                
+        o.attr('class','voted');
+        
+        jQuery.post(my_base_url+my_pligg_base+"/ajaxLinkVote", query, 
+            function(result) {
+                loading.hide();
+                if (/ERROR:/.test(result)) {
+                    result = result.substring(7, result.length);
+
+                    if(result=="sms"){
+                        show_sms_active_box(result, 'vote');				 
+                    } else {
+                        window.alert(result);
+                    }	
+						
+                    o.attr('class','vote');				
+                } else {
+                    if(is_48h_link) {
+                        var ranked_push_link_idx = result.indexOf(':');
+                        
+                        if(ranked_push_link_idx >= 0) {       
+                            var wrap = jQuery('<ul />').html(result.substring(ranked_push_link_idx + 1));
+                            var new_item = wrap.find('> li');
+                            new_item.hide();
+                            o.closest('.link-48h-ranked').parent().find('.link-48h-ranked').last().after(new_item);   
+                            new_item.slideDown('fast');
+                            
+                            result = result.substring(0, ranked_push_link_idx);
+                        }
+                    }
+                    
+                    number_vote.html(result);
+                    o.attr('class','voted');
+                }
+            }
+            );
+        return false;
+    });
+    // Edit link click
+    jQuery(".manage > a").live('click', function(){
+        var drop_down_menu = jQuery(this).parent().eq(0).find(".report-dropdown-menu");
+        if (drop_down_menu.css("display")=="none") {
+            drop_down_menu.show();
+        } else {
+            drop_down_menu.hide();
+        }
+        return false;
+    });
+    jQuery('.news-hide').live('click', function(){
+        var o = jQuery(this);
+        var li_obj = o.parents('li');
+        var rel_data = o.attr('rel').split(":",4);
+        li_obj.addClass('news-item-hide').append('\<div class="hide-options clearfix"\>\<a class="btn-hide" rel="user"\>Ẩn tin từ '+rel_data[1]+'\<\/a\>\<a class="btn-hide" rel="domain"\>Ẩn tin từ '+rel_data[3]+'\</a\>\<a class="btn-hide" rel="channel"\>Bỏ quan tâm kênh '+rel_data[2]+'\</a\>\<a class="btn-hide" rel="cancel"\>Bỏ qua\<\/a\>\<\/div\>');
+        return false;
+    });
+    jQuery('.btn-hide').live('click', function(){
+        var o = jQuery(this);
+        var li_obj = o.parents('li');
+        var options = o.parents('.hide-options');
+        var from = o.attr('rel');
+        var link_id = li_obj.attr('id').replace('news_item_','');
+        var loading = jQuery("#ajaxLoading");
+        var filter_msg = '<div class="notice">Tin đã được ẩn. Refesh lại trang để cập nhật thay đổi. <a title="Quản lý lọc tin" class="notable1 thickbox" href="' + my_base_url + my_pligg_base+ '/actions/user/userFilterManagement.php?height=480&width=620">Click vào đây</a> để quản lý lọc tin.</div>';
+        var url = '';
+        switch(from) {
+            case 'user':
+                url = my_pligg_base+"/ajaxLinkIgnoreAuthor";
+                break;
+            case 'domain':
+                url = my_pligg_base+"/ajaxLinkIgnoreDomain";
+                break;
+            case 'channel':
+                url = my_pligg_base+"/ajaxChannelUnsubcribe";
+                break;
+            case 'cancel':
+                options.remove();
+                li_obj.removeClass('news-item-hide');
+                return;
+                break;
+        }
+        //ajax processing
+        loading.show();
+        jQuery.post(url, {
+            link_id:link_id
+        }, 
+        function(result) {
+            loading.hide();
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);
+            } else {
+                jQuery("#news_item_"+link_id).attr('class','news-item').html(filter_msg);
+                jQuery('.thickbox').each(function(i) {
+                    jQuery(this).unbind('click');
+                });
+                tb_init('a.thickbox, area.thickbox, input.thickbox');
+            }
+        }
+        );
+        return false;
+    });
+    jQuery('.link-mute > a,.link-muted > a').live('click',function(e){
+        e.preventDefault();
+        var pagenameLink = jQuery("#pagename-linkview").val();
+        var o = jQuery(this);
+        var p = o.closest('span');
+        var link_id = parseInt(p.attr('id').replace('link_mute_',''));
+        var loading = jQuery("#ajaxLoading");
+        loading.show();
+        if(p.hasClass('link-mute')){
+            jQuery.post(my_pligg_base+"/ajaxLinkMuteNotify", {
+                action:'muted',
+                id:link_id
+            }, 
+            function(result) {
+                if (/ERROR/.test(result)) {
+                    result = result.substring(7, result.length);
+                    alert(result);
+                    loading.hide();
+                } else{
+                    result = jQuery.parseJSON(result);
+                    if(pagenameLink && pagenameLink == "story"){
+                        o.parent().parent().unbind();
+                        if(o.parent().hasClass('admin-mute')){
+                            o.parent().css('right','81px');
+                            var html = '<span class="link-muted" style="display:block;width:58px;margin-top:0;right:16px"><i></i>Đã mute</span>';
+                        } else {
+                            o.parent().css('right','59px');
+                            var html = '<span class="link-muted" style="display:block;width:58px;margin-top:0;right:-6px"><i></i>Đã mute</span>';
+                        }
+                        o.parent().css('margin-top','0');
+                        o.parent().css('margin-right','0');
+                        //                        o.parent().replaceWith(html);
+                        o.parent().replaceWith(html);
+                    } else {
+                        p.html(result.html);
+                    }
+                }
+                loading.hide();
+            }
+            );
+        } else {
+            jQuery.post(my_pligg_base+"/ajaxLinkMuteNotify", {
+                action:'mute',
+                id:link_id
+            },
+            function(result) {
+                if (/ERROR/.test(result)) {
+                    result = result.substring(7, result.length);
+                    alert(result);
+                    loading.hide();
+                } else{
+                    result = jQuery.parseJSON(result);
+                    if(pagenameLink && pagenameLink == "story"){
+                        o.parent().parent().unbind();
+                        if(o.parent().hasClass('admin-mute')){
+                            o.parent().css('right','81px');
+                            var html = '<span class="link-muted" style="display:block;width:58px;margin-top:0;right:16px"><i></i>Bỏ mute</span>';
+                        } else {
+                            o.parent().css('right','59px');
+                            var html = '<span class="link-muted" style="display:block;width:58px;margin-top:0;right:16px"><i></i>Bỏ mute</span>';
+                        }
+                        o.parent().css('margin-top','0');
+                        o.parent().css('margin-right','0');
+                        o.parent().replaceWith(html);
+                    //                        p.attr('class','link-muted').html(result.html);
+                    } else {
+                        p.html(result.html);   
+                    }
+                    
+                }
+                loading.hide();
+            }
+            );
+        }
+        return false;
+    });
+}
+function RegEvent_TopSearch(){
+    //Search
+    var default_search_text = 'Gõ để vào kênh';
+    var hasData = false;
+    var childs = null;
+    var childidx = -1;
+    jQuery('#search_keyword').focus(function() {
+        if ($j(this).val() == default_search_text) {
+            $j(this).attr('value', '');
+        }
+        if ($j(this).val() != default_search_text) {
+            $j(this).select();
+        }
+    }).blur(function() {
+        if ($j(this).val() == '') {
+            $j(this).attr('value', default_search_text);
+        }
+    }).keyup(function(e) {
+        var obj = $j(this);
+        var query = $j.trim(obj.val());
+        if(query.length == 0) {
+            // Hide the suggestion box.
+            $j('#suggestions').hide();
+            $j('#universal_search').removeClass('active');
+        } else {
+            if (query.length >= 1) {				
+                if ((e.which != 13) && (e.which != 37) && (e.which != 38) && (e.which != 39) && (e.which != 40)) {
+                    var url = my_pligg_base + '/ajaxChannelSuggestion';
+                    $j.post(url, {
+                        keyword: ""+encodeURIComponent(query)+""
+                    }, function(data){
+                        if(data.length >0) {
+                            $j('#universal_search').addClass('active');
+                            $j('#suggestions').show();
+                            $j('#autoSuggestionsList').html(data);
+                            hasData = true;
+                            childs = $j('#autoSuggestionsList').children('li.clearfix');							
+                            childidx = -1;
+                        }else{
+                            $j('#autoSuggestionsList').html('<li class="viewall"><span>Không tìm thấy kênh nào<\/span><\/li>');
+                            hasData = false;
+                        }
+                    });
+                }else{					
+                    if(hasData){						
+                        switch(e.which){
+                            case 40: //down								
+                                if(childidx < childs.length-1){									
+                                    childidx = childidx+1;
+                                    var nextchild = $j(childs[childidx]);
+                                    childs.removeClass('hover');
+                                    nextchild.addClass('hover');
+                                }
+                                break;
+                            case 38: //up
+                                if(childidx>0){									
+                                    childidx = childidx-1;
+                                    var prevchild = $j(childs[childidx]);
+                                    childs.removeClass('hover');
+                                    prevchild.addClass('hover');
+                                }
+                                break;
+                            case 13: //enter
+                                var curchild = $j(childs[childidx]);
+                                if(curchild.length>0){
+                                    var channel_url = $j('div.search-img a',curchild).attr('href');
+                                    document.location = channel_url;
+                                }
+                                break;
+                            default:
+                        }
+                    }
+                }
+            }
+        }
+    }); //end search
+    jQuery('#autoSuggestionsList > li').live('mouseover mouseout', function(event) {
+        if (event.type == 'mouseover') {
+            $j(this).addClass('hover');
+        } else {
+            $j(this).removeClass('hover');
+        }
+    });
+    jQuery('#universal_search_submit').click(function(){
+        var keyword_input = jQuery('#search_keyword'), keyword = jQuery.trim(keyword_input.val());
+        keyword = keyword.replace(/([?*#<>!$%^&()\/]+)/g,""); 
+        keyword = keyword.replace(/([ ]+)/g," ");
+        keyword = keyword.replace(/"/g, '');
+        if (keyword==default_search_text){
+            keyword_input.focus();
+        } else {
+            jQuery('#top_search_form').submit();
+        }
+        return false;
+    });
+}
+function RegEvent_FollowButtonClick(){ // Xu ly su kien cho nut Quan tam	
+    $j(".btn-like").live('click', function(){
+        var loading_obj = $j("#ajaxLoading");
+        var btn = $j(this);
+        var arr = btn.attr("rel").split("-");
+        var action = arr[0];
+        var type = arr[1];
+        var id = arr[2];
+        var domain = arr[3]; // domain or group_channel_id
+        var sitename = arr[4];
+		
+        var small = "";
+        if (arr.length > 4)
+            small = arr[4];
+        if (type == "channel") {
+            if (action == "follow") {
+                loading_obj.show();
+                var query = "id=" + id;
+                var uri = my_base_url+my_pligg_base+"/ajaxChannelSubcribe";
+                $j.post(uri, query, 
+                    function(result) {
+                        loading_obj.hide();
+                        if (/ERROR/.test(result)) {
+                            result = result.substring(7, result.length);
+                            window.alert(result);
+                        } else {
+                            if(btn.hasClass('gs-btnfollow')){ //Effect for getting started page step 1
+                                var li_current = btn.parents('li:first');
+                                var li_next = jQuery('ul#user_channels').find('li:hidden:first');
+                                if (li_next.length > 0){
+                                    var content = li_next.html();
+                                    li_current.fadeOut("slow",
+                                        function(){
+                                            li_current.html(content).attr('id',li_next.attr('id')).fadeIn('slow');
+                                            li_next.remove();
+                                        }
+                                        );
+                                } else {
+                                    li_current.remove();
+                                }
+                            }else{
+                                btn.parents(":first").html('<i></i>Đã quan tâaaam').addClass('btn-follow-success');
+                            }
+                        }
+                    }
+                    );
+            }else if (action == "suggestfollow"){
+                loading_obj.show();
+                var query = "id=" + id;
+                var uri = my_base_url+my_pligg_base+"/ajaxChannelSubcribe";
+                $j.post(uri, query, 
+                    function(result) {
+                        loading_obj.hide();
+                        if (/ERROR/.test(result)) {
+                            result = result.substring(7, result.length);
+                            window.alert(result);
+                        } else {
+                            removeChannelSuggestion(id);
+                        }
+                    }
+                    );
+            }else if (action == "unfollow") {
+                if(window.confirm('Bạn muốn bỏ quan tâm tin tức từ kênh này?')){
+                    loading_obj.show();
+                    var query = "id=" + id;
+                    var uri = my_base_url+my_pligg_base+"/ajaxChannelUnsubcribe";
+                    $j.post(uri, query, 
+                        function(result) {
+                            loading_obj.hide();
+                            if (/ERROR/.test(result)) {
+                                result = result.substring(7, result.length);
+                                window.alert(result);
+                            } else {
+                                if(sitename = '2'){
+                                    btn.parents(":first").html('<i></i>Đã bỏ quan tâm').addClass('btn-follow-success');	
+                                }else{				
+                                    btn.parent().parent().remove();
+                                }
+								
+                            }
+                        }
+                        );
+                }
+            } else if (action == "promotefollow") {
+                loading_obj.show();
+                var query = "id=" + id;
+                var uri = my_base_url+my_pligg_base+"/ajaxChannelSubcribe";
+                $j.post(uri, query, 
+                    function(result) {
+                        loading_obj.hide();
+                        if (/ERROR/.test(result)) {
+                            result = result.substring(7, result.length);
+                            window.alert(result);
+                        } else {
+                            btn.parents(":first").html('<i></i>Đã quan tâm').addClass('btn-follow-success');
+                            timeOutPromoteFollowId = setTimeout('removeChannelFollowSuggestion(' + id + '0)', 3000);
+                        }
+                    });
+            }
+        } else if (type == "user") {
+            if (action == "follow") {
+                loading_obj.show();
+                var query = "to_id=" + id;
+                var uri = my_base_url+my_pligg_base+"/ajaxFriendFollow";
+                $j.post(uri, query, 
+                    function(result) {
+                        loading_obj.hide();
+                        if (/ERROR/.test(result)) {
+                            result = result.substring(7, result.length);
+                            window.alert(result);
+                        } else {
+                            if (small == ""){
+                                /*Getting Started Interface*/
+                                if(btn.hasClass('gs-btnfollow')){
+                                    btn.parents('li').remove();
+                                }else{
+                                    btn.parents(":first").html('<i></i>Đã quan tâm').addClass('btn-follow-success');	
+                                }
+                            }
+                            else{
+                                btn.parents(":first").html('<i title="Đã quan tâm thành công!"></i>').addClass('btn-follow success');
+                            }
+                        }
+                    }
+                    );
+            }else if (action == "big4follow"){
+                loading_obj.show();
+                var query = "to_id=" + id;
+                var contact_id = btn.attr('contact');
+                var service_id = btn.attr('service');
+                var user_id    = btn.attr('user');
+                var from 	   = btn.attr('from');
+                var uri = my_base_url+my_pligg_base+"/ajaxFriendFollow";
+                $j.post(uri, query, 
+                    function(result) {
+                        loading_obj.hide();
+                        if (/ERROR/.test(result)) {
+                            result = result.substring(7, result.length);
+                            window.alert(result);
+                        } else {
+                            hideGraphNode(contact_id,service_id,user_id,from);
+                        }
+                    }
+                    );
+            }else if (action == "suggestfollow"){
+                loading_obj.show();
+                var query = "to_id=" + id;
+                var uri = my_base_url+my_pligg_base+"/ajaxFriendFollow";
+                $j.post(uri, query, 
+                    function(result) {
+                        loading_obj.hide();
+                        if (/ERROR/.test(result)) {
+                            result = result.substring(7, result.length);
+                            window.alert(result);
+                        } else {
+                            removeFollowSuggestion(id);
+                        }
+                    }
+                    );
+            }else if (action == "topfollow"){
+                loading_obj.show();
+                var query = "to_id=" + id;
+                var uri = my_base_url+my_pligg_base+"/ajaxFriendFollow";
+                $j.post(uri, query, 
+                    function(result) {
+                        loading_obj.hide();
+                        if (/ERROR/.test(result)) {
+                            result = result.substring(7, result.length);
+                            window.alert(result);
+                        } else {
+                            removeTopSuggestion(id);
+                        }
+                    }
+                    );
+            }else if (action == "unfollow") {
+                //Unfollow user
+                if(window.confirm('Bạn có chắc chắn muốn bỏ quan tâm người này?')){
+                    loading_obj.show();
+                    var query = "followed_id=" + id;
+                    var uri = my_base_url+my_pligg_base+"/ajaxFriendUnfollow";
+                    $j.post(uri, query, 
+                        function(result) {
+                            loading_obj.hide();
+                            if (/ERROR/.test(result)) {
+                                result = result.substring(7, result.length);
+                                window.alert(result);
+                            } else {
+                                if (small == "")
+                                    btn.parents(":first").html('<i></i>Đã bỏ quan tâm').addClass('btn-follow-success');
+                                else
+                                    btn.parents(":first").html('<i title="Bỏ quan tâm thành công!"></i>').addClass('btn-follow success');
+                            }
+                        }
+                        );
+                }
+            }else if (action == "suggestfollowlink"){
+                loading_obj.show();
+                var query = "to_id=" + id;
+                var uri = my_base_url+my_pligg_base+"/ajaxFriendFollow";
+                $j.post(uri, query, 
+                    function(result) {
+                        loading_obj.hide();
+                        if (/ERROR/.test(result)) {
+                            result = result.substring(7, result.length);
+                            window.alert(result);
+                        } else {
+                            removeFollowSuggestionFromLink(id,0);
+                        }
+                    }
+                    );
+            }else if (action == "gettingfollow"){
+                loading_obj.show();
+                var query = "to_id=" + id;
+                var uri = my_base_url+my_pligg_base+"/ajaxFriendFollow";
+                $j.post(uri, query, 
+                    function(result) {
+                        loading_obj.hide();
+                        if (/ERROR/.test(result)) {
+                            result = result.substring(7, result.length);
+                            window.alert(result);
+                        } else {
+                            var li_current = btn.parents('li:first');
+                            var li_next = jQuery('ul#topusers').find('li:hidden:first');
+                            if (li_next.length > 0){
+                                var content = li_next.html();
+                                li_current.fadeOut("slow",
+                                    function(){
+                                        li_current.html(content).attr('id',li_next.attr('id')).fadeIn('slow');
+                                        li_next.remove();
+                                    }
+                                    );
+                            } else {
+                                li_current.remove();
+                            }
+                        }
+                    }
+                    );
+            }
+        }
+        return false;
+    }) //end Quan tam button click
+}
+function RegEvent_ChannelWarningHover(){
+    $j("#channel-info").hover(function(){
+        $j("a.ch-warning",this).css("display","block");
+    },function(){
+        $j("a.ch-warning",this).css("display","none");
+    });
+}
+/* Hide and load another Channel Suggestion */
+function removeChannelSuggestion(id) {
+    $j("#ajaxLoading").show();
+    $j("#chn-suggest-"+id).fadeOut(1000);
+    $j.ajax({
+        type: "POST",
+        url: my_base_url+my_pligg_base+"/actions/connect/ajaxChannelSuggestionRemove.php",
+        data: "id="+id,
+        success: function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);		
+            } else {
+                $j("#channel-info").html(result);
+            }
+            $j("#ajaxLoading").hide();				
+        }
+    });
+    return false;	
+}
+function insert_msg(val){
+    if(val!="Khác"){
+        $j('#admin_note').hide();
+    }else{
+        $j('#admin_note').show();
+        $j('#admin_note').focus();
+    }
+    $j('#admin_note').val(val);
+};
+function turn_off_notify(type,item_id,obj) {
+    if (window.confirm('Bạn muốn bỏ loại thông báo này?')){
+        $j("#ajaxLoading").show();
+        var query = 'type='+type+'&id='+parseInt(item_id);
+        $j.post(my_base_url+my_pligg_base+"/ajaxTurnOffNotify", query, 
+            function(result) {
+                $j("#ajaxLoading").hide();
+                if (/ERROR/.test(result)) {
+                    result = result.substring(7, result.length);
+                    window.alert(result);
+                } else{
+                    jQuery(obj).parent().parent().remove();
+                }
+            }
+            );
+    }
+    return false
+}
+function select_time(){
+    var pagename =$j('#pagename').val();
+    var filter = $j('#filter').val();
+    window.location.href = my_base_url+my_pligg_base+"/actions/front/tophit.php?pagename="+pagename+"&filter="+filter;
+    return false;
+}
+function ajaxReceiveHotMail(){
+    $j("#ajaxLoading").show();
+    action = 'ajaxSidebarReceiveHotMail';
+    var rcvemail = $j("#input_rcvemail").val();	
+    var val_rcvtype = $j("input[name='input_rcvtype']:checked").val();
+    query = "rcvemail=" + rcvemail + "&rcvtype=" + val_rcvtype;
+    $j.post(my_base_url+my_pligg_base+'/'+action, query, 
+        function(result) {
+            eval("var result="+result);			
+            if(result.error){
+                $j("#newsletter_register_message").html('<b>Email của bạn không hợp lệ!</b>');
+            }else{
+                $j("#newsletter_register_message").html('<b>Bạn đã đăng ký nhận bản tin thành công!</b>');
+            }
+            $j("#ajaxLoading").hide();	
+        }
+        );
+    return false;
+}
+function ajaxReceiveHotMailFooter(){
+    $j("#ajaxLoading").show();
+    action = 'ajaxSidebarReceiveHotMail';
+    var rcvemail = $j("input[name='input_rcvemail_footer']").val();	
+    var val_rcvtype = 2;
+    query = "rcvemail=" + rcvemail + "&rcvtype=" + val_rcvtype;
+    $j.post(my_base_url+my_pligg_base+'/'+action, query, 
+        function(result) {
+            eval("var result="+result);			
+            if(result.error){
+                $j("#newsletter_register_message_footer").html('<b>Email của bạn không hợp lệ!</b>');
+            }else{
+                $j("#newsletter_register_message_footer").html('<b>Bạn đã đăng ký nhận bản tin thành công!</b>');
+            }
+            $j("#ajaxLoading").hide();	
+        }
+        );
+    return false;
+}
+function ajaxReceiveHotMailStop(key_active){
+    $j("#ajaxLoading").show();	
+    action = 'ajaxReceiveHotMailStop';	
+    query = "key_active=" + key_active;
+    $j.post(my_base_url+my_pligg_base+'/'+action, query, 
+        function(result) {
+            eval("var result="+result);			
+            if(result){
+                $j("#receive_hotmail_stop").html('<p><b>Bạn đã dừng nhận bản tin tổng hợp từ Linkhay.com!</b></p>');
+            }
+            $j("#ajaxLoading").hide();	
+			
+        }	
+        );
+    return false;
+}
+
+//Form
+$j('#link_category').change(function () {	
+    var label = $j('#link_category option:selected').attr('title');	
+    if (label == "1") {
+        $j('#new_link_submit_category_warning').show();
+    }
+    else {
+        $j('#new_link_submit_category_warning').hide();
+    }
+});
+var hideDelayTimer = null;
+function RegEvent_MedalHover(){
+    jQuery('.medal').live('mouseover mouseout', function (event) {
+        var obj = jQuery(this),
+        user_id = obj.attr('rel'), 
+        medal_color = obj.attr('class').replace('medal medal-','');
+        var left = obj.x()+15, top =  obj.y()+18;
+        if (event.type == 'mouseover') {
+            jQuery('.badges-hovercard').css({
+                "display":"none",
+                "visibility":"hidden"
+            });
+            var badges_hovercard = jQuery('#badges_hovercard_'+user_id);
+            if (badges_hovercard.length > 0){
+                jQuery("#badges_hovercard_"+user_id).css({
+                    "left": left+"px", 
+                    "top": top+"px",
+                    "display":"block",
+                    "visibility":"visible"
+                });
+                return
+            } else {			
+                badges_hovercard = jQuery('<div id="badges_hovercard_'+user_id+'" class="badges-hovercard badges-hovercard-'+medal_color+'"><div class="badges-hovercard-content">' + 'Loading...' + "</div></div>").css({
+                    left: left,
+                    top: top,
+                    "display":"block",
+                    "visibility":"visible"
+                });
+                badges_hovercard.appendTo('body');
+                //Check input hidden
+                if(jQuery('#hidden-badges-hovercard-'+user_id).length > 0){
+                    badges_hovercard_content = jQuery('#hidden-badges-hovercard-'+user_id).val();
+                    jQuery("#badges_hovercard_"+user_id).html(badges_hovercard_content);
+                    return
+                } else {
+                    jQuery.post(my_pligg_base+"/ajaxGetUserInfo", {
+                        user_id: user_id
+                    }, 
+                    function(result) {
+                        var r = eval(result);
+                        badges_hovercard_content = '<div class="badges-hovercard-content">';
+                        badges_hovercard_content+= '<div class="badges-hovercard-title">'+r.badget+'</div>';
+                        var s = '';
+                        switch(r.badget_number) {
+                            case -1:
+                                s = 'là Miss LinkHay.com';
+                                break;
+                            case -2:
+                                s = 'là Miss thân thiện LinkHay.com';
+                                break;
+                            case -3:
+                                s = 'là Miss Khả ái LinkHay.com';
+                                break;
+                            case -4:
+                                s = 'là Miss ứng xử LinkHay.com';
+                                break;
+                            case 0:
+                                s = 'là thành viên mới tham gia cộng đồng LinkHay.com';
+                                break;
+                            case 1:
+                                s = 'là thành viên quen thuộc với cộng đồng LinkHay.com';
+                                break;
+                            case 2:
+                                s = 'là thành viên tích cực đóng góp cho cộng đồng LinkHay.com';
+                                break;
+                            case 3:
+                                s = 'là thành viên có nhiều đóng góp cho cộng đồng LinkHay.com';
+                                break;								
+								
+                        }
+                        //For 8/3
+                        if(r.badget_number == 4){
+                            badges_hovercard_content+= '<div class="badges-hovercard-static">Thành viên quản trị LinkHay.com</div>';
+                        }else if(r.badget_number == 5){
+                            //Random congratulation
+                            var congra = new Array(17);
+                            congra[0] = 'Trên thiên đường có 10 thiên thần: 5 thiên thần đang chơi đùa, 4 thiên thần đang nói chuyện và 1 thiên thần đang đọc LinkHay...Chúc mừng <strong>' + r.user_login + '</strong> nhân ngày 8/3';
+                            congra[1] = 'Châu Âu ngủ, Châu Á cũng đang ngủ, Châu Mỹ đang tối dần, chỉ có đôi mắt đẹp nhất trên thế giới này đang đọc LinkHay. Chúc mừng <strong>' + r.user_login + '</strong> nhân ngày 8/3';
+                            congra[2] = 'Chúc <strong>' + r.user_login + '</strong> một ngày 8/3 thật là ý nghĩa, vui tươi ngập tràn hạnh phúc. Chúc bạn luôn cười tươi, cười duyên, cười e thẹn, cười trẻ trung và cười các kiểu hoài hoài trong ngày hôm nay';
+                            congra[3] = 'Chúc <strong>' + r.user_login + '</strong> nhận được nhiều quà, nhiều hoa, nhiều lời khen, lời chúc của phái nam trong ngày 8/3';
+                            congra[4] = 'Nhân ngày mùng 8/3 chúc <strong>' + r.user_login + '</strong> gặp nhiều may mắn hơn, hạnh phúc hơn nhiều niềm vui, nhiều điều tuyệt diệu hơn';
+                            congra[5] = 'Ngày 8/3 chúc một nửa thế giới luôn thành công trong cuộc sống! LinkHay gửi lời chúc tới <strong>' + r.user_login + '</strong> luôn duyên dáng và xinh đẹp trong mắt một nửa thế giới còn lại';
+                            congra[6] = 'Chúc <strong>' + r.user_login + '</strong> luôn luôn mạnh khoẻ, trẻ trung, xinh đẹp, tràn đầy hạnh phúc cùng gia đình và bạn bè trong ngày 8/3';
+                            congra[7] = 'Chúc <strong>' + r.user_login + '</strong> luôn thành công trong cuộc sống và luôn luôn mang những phẩm chất đặc trưng của người phụ nữ Việt Nam: Anh hùng, bất khuất, trung hậu, và đảm đang';
+                            congra[8] = 'Chúc <strong>' + r.user_login + '</strong> những gì tốt đẹp nhất mà chưa từng ai chúc bạn';
+                            congra[9] = 'Chúc <strong>' + r.user_login + '</strong> từ hôm nay sẽ xinh đẹp hơn bao ngày trước đây và cứ đẹp hoài không nghỉ ngơi';
+                            congra[10] = 'Nhân ngày mùng 8/3 chúc <strong>' + r.user_login + '</strong>: Trẻ trung như heo sữa, Bốc lửa như heo hơi, Chịu chơi như heo nái, Hăng hái như heo con, Sắc son như heo đất, Đủ chất như... heo thịt';
+                            congra[11] = 'Chúc <strong>' + r.user_login + '</strong> có đủ tố chất để vươn lên những đỉnh cao hãy lấy bầu trời xanh làm giới hạn bạn nhé. Chúc bạn ngày quốc tế phụ nữ thật hạnh phúc';
+                            congra[12] = 'Nhân ngày quốc tế phụ nữ, chúc <strong>' + r.user_login + '</strong> hay ăn chóng lớn, xinh đẹp phổng phao';
+                            congra[13] = 'Chúc cho sắc đẹp nghiêng nước nghiêng thùng của <strong>' + r.user_login + '</strong> sớm được vinh danh tại cuộc thi Hoa hậu Việt Nam ngày này năm sau';
+                            congra[14] = 'Sắp đến ngày 8/3 rồi, chúc <strong>' + r.user_login + '</strong> có thật nhiều tiền để đi nâng cấp vòng 1 của bạn :))';
+                            congra[15] = 'Nhân ngày Quốc tế phụ nữ, chúc bạn may mắn bốc thăm được phần thưởng là chuyến đi sang Thái... phẫu thuật vòng 1 ^^';
+                            congra[16] = 'Nhân ngày quốc tế phụ nữ, chúc <strong>' + r.user_login + '</strong> thật nhiều niềm vui và những may mắn tỷ lệ thuận với số cân nặng của bạn :*';
+                            var congraRand = congra[Math.floor(Math.random()*congra.length)];
+                            badges_hovercard_content+= '<div class="badges-hovercard-static">' + congraRand + '</div>';
+                        }else{
+                            badges_hovercard_content+= '<div class="badges-hovercard-static"><strong>'+r.user_login+'</strong> '+s+'. Đã gửi <strong>'+r.statistic_link+'</strong> tin, <strong>'+r.statistic_comment+'</strong> bình luận và được <strong>'+r.statistic_follower+'</strong> người quan tâm.</div>';
+                        }
+                        /*if(r.badget_number == 4){
+								badges_hovercard_content+= '<div class="badges-hovercard-static">Thành viên quản trị LinkHay.com</div>';
+							}else{
+								badges_hovercard_content+= '<div class="badges-hovercard-static"><strong>'+r.user_login+'</strong> '+s+'. Đã gửi <strong>'+r.statistic_link+'</strong> tin, <strong>'+r.statistic_comment+'</strong> bình luận và được <strong>'+r.statistic_follower+'</strong> người quan tâm.</div>';
+							}*/
+                        badges_hovercard_content+= '</div>';
+                        jQuery("#badges_hovercard_"+user_id).html(badges_hovercard_content);
+                        jQuery("#badges_hovercard_"+user_id).mouseenter(function() {
+                            if (hideDelayTimer) clearTimeout(hideDelayTimer);
+                            return false;
+                        });
+                        jQuery("#badges_hovercard_"+user_id).mouseleave(function() {
+                            if (hideDelayTimer) clearTimeout(hideDelayTimer);
+                            hideDelayTimer = setTimeout(function () {
+                                jQuery("#badges_hovercard_"+user_id).css({
+                                    "display":"none",
+                                    "visibility":"hidden"
+                                });
+                            }, 200);
+                        });
+                    },'json');
+                }
+            }
+        } else {
+            // Mouse out medal
+            if (hideDelayTimer) clearTimeout(hideDelayTimer);
+            hideDelayTimer = setTimeout(function () {
+                jQuery("#badges_hovercard_"+user_id).css({
+                    "display":"none",
+                    "visibility":"hidden"
+                });
+            }, 200);
+            return false;
+        }
+    });
+}
+
+
+/* Hide and load another Follow Suggestion */
+function removeFollowSuggestion(id,from) {
+    var bttn = $j("#gs-suggestion-"+id).find('.fs_wg_close_home > a');	
+    if (bttn.attr('disable') == 'disable')
+        return false;
+    else 
+        bttn.attr('disable', 'disable');	
+    $j("#ajaxLoading").show();
+    $j("#gs-suggestion-"+id).fadeOut(1000);
+    $j("#suggest-top-" + id).fadeOut(1000);
+
+    $j.ajax({
+        type: "POST",
+        url: my_base_url+my_pligg_base+"/actions/connect/ajaxFollowSuggestionRemove.php",
+        data: "id="+id+"&from="+from,
+        success: function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);		
+            } else {
+                if (result!="NA") {
+                    $j("#gs-suggestion-" + id).after(result);
+                }	
+                $j("#suggest-top-" + id).remove();	
+                $j("#gs-suggestion-" + id).remove();
+                //Reload thickbox
+                $j('.thickbox').each(function(i) {
+                    $j(this).unbind('click');
+                });
+                tb_init('a.thickbox, area.thickbox, input.thickbox');				
+
+            }
+            $j("#ajaxLoading").hide();				
+        }
+    });
+	
+    //$j('.fs_wg_close_home').removeAttr('disable');
+    return false;	
+}
+/* Hide and load another Follow Suggestion 
+ * thuocnt
+ * */
+function removeFollowSuggestionFromLink(id,type) {
+    $j("#ajaxLoading").show();
+    $j("#suggest-friend-link-"+id).fadeOut(1000);
+    $j.ajax({
+        type: "POST",
+        url: my_base_url+my_pligg_base+"/actions/connect/ajaxLinkFriendSuggestionRemove.php",
+        data: "id="+id+"&type="+type,
+        success: function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);		
+            } else {
+                if (result!="NA") {
+                    $j("#suggest-friend-link-" + id).after(result);
+                    $j("#suggest-friend-link-" + id).remove();	
+                    //Reload thickbox
+                    $j('.thickbox').each(function(i) {
+                        $j(this).unbind('click');
+                    });
+                    tb_init('a.thickbox, area.thickbox, input.thickbox');				
+                }else {
+                    $j("#sidebar_block_friend_follow").hide();
+                }
+            }
+            $j("#ajaxLoading").hide();			
+        }
+    });
+    return false;	
+}
+
+function removeSuggest(id,from) {
+    var bttn = $j("#suggest-top-" + id).find('.fs_wg_close_home > a');
+    if (bttn.attr('disable') == 'disable')
+        return false;
+    else
+        bttn.attr('disable', 'disable');
+    var suggested = new Array();
+    $j('.suggest_all').each(function(){
+        var suggest_all = $j(this).attr('id');
+        suggest_all = suggest_all.replace("suggest-top-","");
+        suggested.push(suggest_all);
+    });
+    $j("#ajaxLoading").show();
+    $j("#gs-suggestion-"+id).fadeOut(1000);
+    $j("#suggest-top-" + id).fadeOut(1000);
+    $j.ajax({
+        type: "POST",
+        url: my_base_url+my_pligg_base+"/user/suggest_friend/remove",
+        data: {
+            id : id,
+            from : from,
+            suggested : suggested
+        },
+        success: function(result) {
+                if (result!="NA") {
+                    $j("#suggest-top-" + id).after(result.data);
+
+                }
+                $j("#suggest-top-" + id).remove();
+                $j("#gs-suggestion-"+id).remove();
+                //Reload thickbox
+                $j('.thickbox').each(function(i) {
+                    $j(this).unbind('click');
+                });
+
+                //re bind follow user btn
+                $j('.act-follow-user').each(function(){
+
+                    $j(this).unbind('click');
+                    $j(this).click(follow_user);
+                });
+                tb_init('a.thickbox, area.thickbox, input.thickbox');
+
+
+            $j("#ajaxLoading").hide();
+        }
+    });
+    //$j('.fs_wg_close_home').removeAttr('disable');
+    return false;
+}
+
+
+
+/* Hide and load another Top Suggestion */
+function removeTopSuggestion(id,from) {		
+    var bttn = $j("#suggest-top-" + id).find('.fs_wg_close_home > a');	
+    if (bttn.attr('disable') == 'disable')
+        return false;
+    else 
+        bttn.attr('disable', 'disable');
+    var suggested = new Array();
+    $j('.suggest_all').each(function(){
+        var suggest_all = $j(this).attr('id');
+        suggest_all = suggest_all.replace("suggest-top-","");
+        suggested.push(suggest_all);
+    });
+    $j("#ajaxLoading").show();
+    $j("#gs-suggestion-"+id).fadeOut(1000);
+    $j("#suggest-top-" + id).fadeOut(1000);
+    $j.ajax({
+        type: "POST",
+        url: my_base_url+my_pligg_base+"/actions/connect/ajaxTopSuggestionRemove.php",
+        data: {
+            id : id,
+            from : from,
+            suggested : suggested
+        },
+        success: function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);		
+            } else {
+            	
+                if (result!="NA") {
+                    $j("#suggest-top-" + id).after(result);
+									
+                }
+                
+                $j("#suggest-top-" + id).remove();
+                $j("#gs-suggestion-"+id).remove();
+                //Reload thickbox
+                $j('.thickbox').each(function(i) {
+                    $j(this).unbind('click');
+                });
+                
+                //re bind follow user btn
+                $j('.act-follow-user').each(function(){
+                
+                    $j(this).unbind('click');
+                    $j(this).click(follow_user);
+                });
+                tb_init('a.thickbox, area.thickbox, input.thickbox');				
+							
+            }
+            $j("#ajaxLoading").hide();				
+        }
+    });
+    //$j('.fs_wg_close_home').removeAttr('disable');
+    return false;	
+}
+
+function hideUnreadLink() {
+    setTimeout(function () {
+        $j(".unread").removeClass('unread');
+    }, 60000);
+}
+hideUnreadLink();
+//Get more link homepage
+function ajaxHomepageGetMore() {
+    var lh_show_more = $j("#lh_show_more").val();	
+    var check_load = $j("#check_load").val();
+    if (lh_show_more == 1 && check_load == 1){		
+        $j("#ajax-getmore-loading").show();
+        var lh_pagename = $j("#lh_pagename").val();
+        var lh_category = $j("#lh_category").val();
+        var lh_page = parseInt($j("#lh_page").val());
+        $j("#check_load").val(0);
+        var query = "";
+        query = 'pagename='+lh_pagename+'&category='+lh_category+'&page='+lh_page;
+        $j.get(my_base_url+my_pligg_base+"/ajaxHomepageGetMore", query, 
+            function(result) {				
+                eval("var result="+result);
+                $j("ul.list-news").append(result.lh_more);
+                $j("#lh_page").val(result.lh_page);
+                $j("#lh_show_more").val(result.lh_show_more);
+                if (result.lh_show_more == 0) {
+                    $j("#news-action a.more").remove();
+                } else {
+                    $j("#news-action a.more").attr('href', '#page'+result.lh_page);
+                }
+                $j("#ajax-getmore-loading").hide();
+                $j("#check_load").val(1);
+                $j('.mrk-reshareLink').unbind();
+                $j('.mrk-reshareLink').click($j.ajaxBoxReshare);
+                hideUnreadLink();
+                jQuery('.tooltip_vote_cmt').tipsy({
+                    title : 'rel',
+                    gravity : 's',
+                    html : true,
+                    opacity : 1
+                });
+            }
+            );
+    }
+    return false;
+}
+
+/* ManhTienpt: Get more link homepage */ 
+function ajaxSocialGetMore() {
+    var lh_show_more = $j("#lh_show_more").val();	
+    var check_load = $j("#check_load").val();
+    if (lh_show_more == 1 && check_load == 1){		
+        $j("#ajax-getmore-loading").show();
+        var lh_pagename = $j("#lh_pagename").val();
+        var lh_page = parseInt($j("#lh_page").val());
+        $j("#check_load").val(0);
+        var query = "";
+        query = 'pagename='+lh_pagename+'&page='+lh_page;
+        $j.get(my_base_url+my_pligg_base+"/ajaxSocialGetMore", query, 
+            function(result) {				
+                eval("var result="+result);
+                $j("ul.list-news").append(result.lh_more);
+                $j("#lh_page").val(result.lh_page);
+                $j("#lh_show_more").val(result.lh_show_more);
+                if (result.lh_show_more == 0) {
+                    $j("#news-action").remove();
+                } else {
+                    $j("#news-action a.more").attr('href', '#page'+result.lh_page);
+                }
+                $j("#ajax-getmore-loading").hide();
+                $j("#check_load").val(1);
+            }
+            );
+    }
+    return false;
+}
+
+function clearRcvMailText(){
+    var default_text = 'Đăng ký nhận tin từ LinkHay qua email';
+    if ($j("input[name='input_rcvemail_footer']").val() == default_text) {
+        $j("input[name='input_rcvemail_footer']").attr('value', '');
+    }
+    if ($j("input[name='input_rcvemail_footer']").val() != default_text) {
+        $j("input[name='input_rcvemail_footer']").select();
+    }
+}
+// Function for submit from homepage	
+function RegEvent_PostLinkClick(){	
+    $j('#submit_link_input').focus(function(){
+        $j(this).parents('.submit-form').addClass("submit-form-focus");
+        var input_link = jQuery(this).val();
+        if (input_link == 'Gửi tin'){
+            $j(this).val('');
+            jQuery("#select_submit_link").fcbkcomplete({
+                json_url: my_pligg_base + "/ajaxHomepageSuggest",
+                cache: true,
+                filter_case: false,
+                filter_hide: true,
+                firstselected: true,
+                filter_selected: true,
+                complete_text: "Thêm kênh hoặc người cần gửi ...",
+                maxitems: 10,
+                newel: false		
+            });	
+        }		
+        return false;
+    });
+    jQuery('#submit_link_input').keyup(function(e) {		
+        var obj = jQuery(this);
+        var query = obj.val();
+        //Change to title
+        if(query == ""){
+            jQuery(".UIShareStage_Title").html("Bạn chưa nhập thông điệp");
+        }else{
+            jQuery(".UIShareStage_Title").html(query);
+        }
+        //Get array query
+        if(query.substr(-1) == " "){
+            //Get array query
+            var ss1 = query.split("\n");
+            var length_ss1= ss1.length;			
+            var re = /^(http:\/\/([\-\w]+\.)+\w{2,3}(\/[%\-\w]+(\.\w{2,})?)*(([\w\-\.\?\\\/+@&#;`~=%!]*)(\.\w{2,})?)*\/?)/i;							
+            for(l=0;l<length_ss1;l++){				
+                ss = ss1[l].split(" ");
+                var length = ss.length;
+                for(i=0;i<length;i++){
+                    if(re.test(ss[i])){
+                        if(jQuery('#link_submit_check_ajax').val() == '0'){
+                            jQuery('#link_submit_check_ajax').val('1');					
+                            jQuery('.submit-form').addClass('submit-form-attach');
+                            $j.getJSON(my_pligg_base+'/ajaxLinkGetInfoNew',"link_url="+encodeURIComponent(ss[i]),
+                                function(data) {
+                                    getLinkData_callback(data);
+                                }
+                                );
+                        }
+                        break;
+                    }		
+                }
+            }
+        }				
+    }).bind('paste',function(e) {
+        setTimeout(function() {
+            var query = jQuery('#submit_link_input').val();
+            if(query == ""){
+                jQuery(".UIShareStage_Title").html("Bạn chưa nhập thông điệp");
+            }else{
+                jQuery(".UIShareStage_Title").html(query);
+            }
+            //Get array query
+            var ss1 = query.split("\n");
+            var length_ss1= ss1.length;
+            var re = /^(http:\/\/([\-\w]+\.)+\w{2,3}(\/[%\-\w]+(\.\w{2,})?)*(([\w\-\.\?\\\/+@&#;`~=%!]*)(\.\w{2,})?)*\/?)/i;
+            for(l=0;l<length_ss1;l++){							
+                ss = ss1[l].split(" ");
+                var length = ss.length;
+                for(i=0;i<length;i++){
+                    if(re.test(ss[i])){
+                        if(jQuery('#link_submit_check_ajax').val() == '0'){
+                            jQuery('#link_submit_check_ajax').val('1');					
+                            jQuery('.submit-form').addClass('submit-form-attach');
+                            $j.getJSON(my_pligg_base+'/ajaxLinkGetInfoNew',"link_url="+encodeURIComponent(ss[i]),
+                                function(data) {
+                                    getLinkData_callback(data);
+                                }
+                                );
+                        }
+                        break;
+                    }		
+                }
+            }
+        }, 100);    							
+    });
+    jQuery('.UIComposer_AttachmentArea_CloseButton').click(function(){
+        jQuery('#link_submit_check_ajax').val('0');
+        jQuery('.UIComposer_Attachment_Cached').html('');
+        jQuery('.submit-form').removeClass('submit-form-loaded');
+    });
+    jQuery('.UIThumbPagerControl_Button').live('click',function(){
+        var arr = jQuery(this).attr('class').replace('UIThumbPagerControl_Button UIThumbPagerControl_Button_','');
+        var first_img = jQuery('.UIThumbPager_Thumbs').children('img:first');
+        var last_img = jQuery('.UIThumbPager_Thumbs').children('img:last');
+        var current_img = jQuery('.UIThumbPager_Thumbs').children('img:visible');
+        var current_page = jQuery('.UIThumbPagerControl_PageNumber_Current');
+        var current_page_number = parseInt(current_page.text());
+        var thumb_pager_control = jQuery('.UIShareStage_ThumbPagerControl');
+        if (arr == 'Left'){
+            if (current_img.attr('src') == first_img.attr('src')){
+                return;
+            }
+            current_img.addClass('UIThumbPager_Hidden');
+            current_img.prev().removeClass('UIThumbPager_Hidden');
+            if(thumb_pager_control.hasClass('UIThumbPagerControl_Last')){
+                thumb_pager_control.removeClass('UIThumbPagerControl_Last');
+            }
+            if (current_img.prev().attr('src')==first_img.attr('src')){
+                thumb_pager_control.addClass('UIThumbPagerControl_First');
+            }
+            current_page.text(current_page_number-1);
+        } else { //arr = Right
+            if (current_img.attr('src') == last_img.attr('src')){
+                return;
+            }
+            current_img.addClass('UIThumbPager_Hidden');
+            current_img.next().removeClass('UIThumbPager_Hidden');
+            if(thumb_pager_control.hasClass('UIThumbPagerControl_First')){
+                thumb_pager_control.removeClass('UIThumbPagerControl_First');
+            }
+            if (current_img.next().attr('src') == last_img.attr('src')){
+                thumb_pager_control.addClass('UIThumbPagerControl_Last');
+            }
+            current_page.text(current_page_number+1);
+        }		
+        jQuery('#attach_link_image').val(jQuery('.UIThumbPager_Thumbs').children('img:visible').attr('src'));
+        return false;
+		
+    });
+    jQuery('#link_submit_button').click(function(){
+        //Reset
+        jQuery('#link_submit_error').html('');
+        //Query
+        var link_title = jQuery('#submit_link_input').val();
+        var link_url = jQuery('#submit_link_url').val();
+        link_url = encodeURIComponent(link_url);
+        //Disable button send	
+        jQuery('#link_submit_button').attr("disabled","disabled");
+        jQuery('#submit_link_input').attr("disabled","disabled");
+        if(link_title == ""){
+            jQuery('#link_submit_button').attr("disabled","");
+            jQuery('#submit_link_input').attr("disabled","");
+            jQuery('#link_submit_error').html("Bạn chưa nhập thông điệp!");			 
+            return false;
+        } else{
+            link_title = encodeURIComponent(link_title); 
+        }
+        //Get category and pm
+        var pm_value = jQuery('#select_submit_link_hidden').val();
+        if(pm_value == ""){
+            jQuery('#link_submit_button').attr("disabled","");
+            jQuery('#submit_link_input').attr("disabled","");
+            jQuery('#link_submit_error').html("Bạn chưa chọn kênh hoặc người gửi tới!");
+            return false;
+        }
+        pm_arr = pm_value.split("_");
+        if(pm_arr == null){
+            jQuery('#link_submit_button').attr("disabled","");
+            jQuery('#submit_link_input').attr("disabled","");
+            jQuery('#link_submit_error').html("Bạn chưa chọn kênh hoặc người gửi tới!");
+            return false;
+        }
+        var pm_length = pm_arr.length;		
+        var prefix = '';
+        var link_pm = '';
+        var link_myfeed = 0;
+        var total_channel = 0;
+        var link_category = '';
+		
+        for(i=0;i<pm_length;i++){
+            prefix = pm_arr[i].substr(0,1); 
+            if(prefix == 'c'){
+                total_channel++;
+                link_category = pm_arr[i].substr(1) + "_";
+            }else if (prefix == 'm'){
+                link_myfeed = 1;
+            }else if (prefix == 'u'){
+                link_pm += pm_arr[i].substr(1) + '_';
+            }
+        }
+        //Validate
+        if(total_channel > 1){
+            $j('#link_submit_button').attr("disabled","");
+            jQuery('#submit_link_input').attr("disabled","");
+            $j('#link_submit_error').html("Bạn chỉ được chọn tối đa một kênh!");
+            return false;
+        }else{
+            link_category = encodeURIComponent(link_category.substr(0,link_category.length-1));
+        }
+        //Link pm
+        if(link_pm != ''){
+            link_pm =  encodeURIComponent(link_pm.substr(0,link_pm.length-1));
+        }
+        if(link_url == "" || link_url == "undefined"){
+            jQuery('#link_submit_button').attr("disabled","");
+            jQuery('#submit_link_input').attr("disabled","");
+            jQuery('#link_submit_error').html("Bạn phải nhập link của tin!");
+            return false;
+        }
+        var link_embed = encodeURIComponent(jQuery('#attach_link_embed').val());
+        //Get thumb
+        var link_thumb = encodeURIComponent(jQuery('#attach_link_image').val());
+        if(link_thumb == ""){
+            //Get from list image crawl
+            link_thumb = jQuery('.UIThumbPager_Thumbs').children('img:visible').attr('src');
+        } 
+		
+        var link_chat = "no";
+        if($j( '#check_chat' ).is(':checked')){
+            link_chat = "yes";
+        }
+        var query = 'link_url=' + link_url + '&link_title=' + link_title + '&link_thumb=' + link_thumb + '&link_embed=' + link_embed + '&link_category=' + link_category + '&link_chat=' + link_chat + "&link_pm="+link_pm+"&link_myfeed="+link_myfeed;
+        jQuery("#submit_link_loader").show(); 
+        jQuery.post(my_base_url+my_pligg_base+"/ajaxLinkPostNew", query, function(result) {
+            //Enable
+            jQuery("#submit_link_loader").hide();
+            jQuery('#link_submit_button').attr("disabled","");
+            jQuery('#submit_link_input').attr("disabled","");
+            //Parse Json
+            if(result.error == 1){
+                $j('#link_submit_error').html(result.show_error);
+                return false;
+            }else if(result.error == 10){
+                $j('#submit-form').html("<div style='padding: 10px;border:1px solid #CCC;background-color:#fef4d1;'>Tin của bạn đã được gửi và đang chờ duyệt bởi quản trị kênh <strong> " + result.channel_name + "</strong></div>");
+            }else{			
+                window.location = result.redirect_url;					
+            }
+        },"json");
+        return false;
+    });
+}
+var _outOfProfileMenu = true;
+function closeProfileMenu() {
+    if(_outOfProfileMenu) {
+        $j(".account-link").removeClass("menu-dropdown-expanded");
+        $j(document).unbind('mousedown', closeProfileMenu);
+    }	
+}
+function RegEvent_ProfileDashboard(){
+    $j(".account-link").hover(function(){
+        _outOfProfileMenu = false;
+    }, function(){
+        _outOfProfileMenu = true;
+    });
+    $j(".account-link").click(function(){
+        $j(".account-link").each(function(index) {
+            $j(this).removeClass("menu-dropdown-expanded");
+            $j(document).unbind('mousedown', closeProfileMenu);
+        });
+
+        $j(this).toggleClass("menu-dropdown-expanded");
+        if($j(this).hasClass("menu-dropdown-expanded")) {
+            $j(document).bind('mousedown', closeProfileMenu);
+        } else {
+            $j(document).unbind('mousedown', closeProfileMenu);
+        } 
+    });
+    //Channel menu manage hover
+    $j('#channel_admin').hover(function(){
+        $j(this).addClass("menu-dropdown-expanded");
+    }, function() {
+        $j(this).removeClass("menu-dropdown-expanded");
+    });
+}
+function RegEvent_NavigationChannel(){ //nav channel header event
+    jQuery("#nav > li.c-item").hover(function(){
+        jQuery(this).addClass("c-item-hover");
+    }, function(){
+        jQuery(this).removeClass("c-item-hover");
+    });
+    jQuery(".channel_follow").hover(function(){
+        jQuery(this).addClass("channel_follow_hover");
+    }, function(){
+        jQuery(this).removeClass("channel_follow_hover");
+    });
+    jQuery("#nav > li.more > a.c-item").click(function(){
+        var follow_channels = jQuery('#follow_channels');
+        if (follow_channels.css('display') == 'none') {
+            follow_channels.show();
+            jQuery('#nav-wrap').hide();
+        }
+        return false;
+    });
+    jQuery("a#follow_channels_close").click(function(){
+        var follow_channels = jQuery('#follow_channels');
+        if (jQuery('#nav-wrap').css('display') == 'none') {
+            follow_channels.hide();
+            jQuery('#nav-wrap').show();
+        }
+        return false;
+    });
+}
+function show_link_image(status) {
+    if(status == 1){
+        $j('#show_link_embed').hide();
+        $j('#show_link_image').show();
+        $j('#attach_menu_link').hide();
+    }
+    else {
+        $j('#show_link_image').hide();
+        $j('#attach_menu_link').show();
+    }
+}
+function show_link_embed(status) {
+    if(status == 1)	{
+        $j('#show_link_image').hide();
+        $j('#show_link_embed').show();
+        $j('#attach_menu_link').hide();
+    } else {
+        $j('#show_link_embed').hide();
+        $j('#attach_menu_link').show();
+    }
+}
+function getLinkData_callback(data){
+    var html = '<input type="hidden" id="submit_link_url" name="submit_link_url" value="'+data.link_url+'"/>';
+    html += '<div><div class="UIShareStage clearfix UIShareStage_HasImage">'+
+    '<div class="UIShareStage_Image">'+
+    '<div class="UIShareStage_ThumbPager UIThumbPager">'+
+    '<div class="UIThumbPager_Loader" style="display: none;"></div>'+
+    '<div class="UIThumbPager_Thumbs"></div>'+								
+    '</div>'+
+    '</div>'+
+    '<div class="UIShareStage_ShareContent">';
+    var query = jQuery('#submit_link_input').val();
+    query = query.replace(data.link_url,"");
+    jQuery('#submit_link_input').val(query);
+    total_thumb = 0;
+    all_thumb = 0;
+    if(query == ''){
+        html += '<h2 class="UIShareStage_Title">Bạn chưa nhập thông điệp</h2>'; 
+    }else{
+        html += '<h2 class="UIShareStage_Title">'+query+'</h2>';
+    }								
+    html +=
+    '<div class="UIShareStage_Summary">'+
+    '<div class="UIShareStage_ThumbPagerControl UIThumbPagerControl UIThumbPagerControl_First">'+
+    '<div class="UIThumbPagerControl_Buttons"><a class="UIThumbPagerControl_Button UIThumbPagerControl_Button_Left" href="javascript:;"></a><a class="UIThumbPagerControl_Button UIThumbPagerControl_Button_Right" href="javascript:;"></a></div>'+
+    '<div class="UIThumbPagerControl_Text"><span class="UIThumbPagerControl_PageNumber"><span class="UIThumbPagerControl_PageNumber_Current">1</span> trong <span class="UIThumbPagerControl_PageNumber_Total">1</span> ảnh</span>Chọn ảnh đại diện</div>'+
+    '<span class="stream-check-chat">' + 						
+    '<input type="checkbox" id="check_chat">' + 
+    '<label for="check_chat">Bật tính năng Chatroom <span>(đang thử nghiệm)</span></label>' +			
+    '</span>' +
+    '</div>'+
+    '</div>'+
+    '<div id="attach_menu_link" class="attach-menu clearfix">'+
+    '<span>Đính</span>'+
+    '<a class="a-image" href="javascript://" title="Ảnh minh họa" onclick="show_link_image(1);">image</a>'+
+    '<a class="a-video" href="javascript://" title="Video hoặc mã nhúng minh họa" onclick="show_link_embed(1);">video</a>'+	
+    '</div>'+
+    '<div id="show_link_embed" class="attach-item clearfix" style="display: none;">'+
+    '<input class="link-attach" type="text" name="attach_link_embed" id="attach_link_embed" />'+
+    '<input type="hidden" name="attach_link_embed_small" id="attach_link_embed_small" />'+
+    '<a href="javascript://" onclick="show_link_embed(0);" title="Đóng">Đóng</a>'+
+    '</div>'+
+    '<div id="show_link_image" class="attach-item clearfix" style="display: none;">'+
+    '<input class="link-attach" type="text" name="attach_link_image" id="attach_link_image" />'+
+    '<a href="javascript://" onclick="show_link_image(0);" title="Đóng">Đóng</a>'+
+    '</div>'+
+    '</div>'+													
+    '</div></div>';
+    jQuery('.UIComposer_Attachment_Cached').html(html);
+    if(data.link_thumb != null){
+        var length = data.link_thumb.length;
+        for(i=0;i<length;i++){
+            jQuery('<img/>', {
+                'class': 'img UIThumbPager_Hidden',
+                'width': 100,
+                'src': ''+data.link_thumb[i],
+                load: function(){
+                    if(this.width < 120 || this.height < 120){
+                        jQuery(this).remove();			            
+                    }else{
+                        total_thumb++;
+                        if(total_thumb == 1){
+                            jQuery(this).removeClass('UIThumbPager_Hidden');
+                            jQuery('.UIShareStage_ThumbPagerControl').addClass('UIThumbPagerControl_Last');
+                            jQuery('#attach_link_image').val(this.src);
+                        }else{
+                            jQuery('.UIShareStage_ThumbPagerControl').removeClass('UIThumbPagerControl_Last');
+                        }
+                        jQuery('.UIThumbPagerControl_PageNumber_Total').text(total_thumb);
+                        jQuery('.UIThumbPager_Thumbs').append(jQuery(this));			       	    				       						        
+                    }
+                    all_thumb++;	
+                    if(all_thumb == data.total_thumb){
+                        //Add nothumbnail image
+                        if(data.link_thumb[0] != 'http://linkhay2.vcmedia.vn/thumbs/nothumb120.png'){
+                            jQuery('.UIThumbPager_Thumbs').append('<img class="img UIThumbPager_Hidden" style="width: 100px;" src="http://linkhay2.vcmedia.vn/thumbs/nothumb120.png">');
+                            jQuery('.UIShareStage_ThumbPagerControl').removeClass('UIThumbPagerControl_Last');
+                            total_thumb++;
+                            jQuery('.UIThumbPagerControl_PageNumber_Total').text(total_thumb);
+                        }			       	    				       	    	
+                    }			       	    		       		
+                }
+            }).appendTo(".UIThumbPager_Loader");			
+        }		
+    }else if(data.link_embed_show != null){
+        jQuery('.UIThumbPager_Thumbs').append(data.link_embed_show);		
+    }		
+    if(data.link_embed != null){
+        jQuery('#attach_link_embed').val(data.link_embed);
+    }			
+    jQuery('.submit-form').removeClass('submit-form-attach').addClass('submit-form-loaded');
+}
+function RegEvent_FollowChannel_ViewMore(){
+    jQuery('#followchannel-viewmore').click(function(e){
+        e.preventDefault();
+        var current_more = parseInt(jQuery(this).attr('rel'));
+        var li_hidden_arr = jQuery('.lst-chanels-userfollow').children('li:hidden');
+        var li_length = li_hidden_arr.length;
+        var start_show = 5 + current_more*3;
+        var end_show = 7 + current_more*3;
+        for(i=0;i<li_length;i++){
+            var current_show = parseInt(jQuery(li_hidden_arr[i]).attr('rel'));
+            if(current_show >= start_show && current_show <= end_show){
+                jQuery(li_hidden_arr[i]).show();
+            }
+        }
+        //Check to clear button view more
+        if(jQuery('.lst-chanels-userfollow').children('li:hidden').length == 0){
+            jQuery('.followchannel-viewmore').remove();
+        }else{
+            //Increment 1 value
+            jQuery(this).attr('rel',current_more+1)
+        }
+    });
+}
+
+function follow_user() {
+    var btn = $j(this);
+    var loading_obj = $j("#ajaxLoading");
+	
+    loading_obj.show();
+	
+    var query = "to_id=" + btn.attr('rel');
+    var uri = my_base_url+my_pligg_base+"/ajaxFriendFollow";
+	
+    $j.post(uri, query, 
+        function(result) {
+            loading_obj.hide();
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);
+            } else {
+                if(btn.hasClass('gs-btnfollow')){
+                    btn.parents('li').remove();
+                }else if(btn.hasClass('detail-new-linkview')){
+                    btn.html('<span class="link-muted detail-link-mute-view" style="display:inline-block;margin-right:0"><i></i>Đã quan tâm</span>');
+                } else {
+                    btn.parents(":first").html('<i></i>Đã quan tâm').addClass('btn-follow-success');	
+                }
+            }
+        }
+        );
+}
+
+function unfollow_user() {	
+    if(window.confirm('Bạn có chắc chắn muốn bỏ quan tâm người này?')){
+        var btn = $j(this);
+        var loading_obj = $j("#ajaxLoading");
+		
+        loading_obj.show();
+        var query = "followed_id=" + btn.attr('rel');
+        var uri = my_base_url+my_pligg_base+"/ajaxFriendUnfollow";
+        $j.post(uri, query, 
+            function(result) {
+                loading_obj.hide();
+                if (/ERROR/.test(result)) {
+                    result = result.substring(7, result.length);
+                    window.alert(result);
+                } else {
+                    if(btn.hasClass('detail-new-linkview')){
+                        btn.html('<span class="link-muted detail-link-mute-view" style="display:inline-block;margin-right:0"><i></i>Đã bỏ quan tâm</span>');
+                    } else {
+                        btn.parents(":first").html('<i></i>Đã bỏ quan tâm').addClass('btn-follow-success');
+                    }
+                }
+            }
+            );
+    }
+}
+
+function RegEvent_BtnClick() {
+    $j('.mrk-btn').each(function(){
+        var listener = function(){
+            return false;
+        };
+		
+        var btn = $j(this);
+		
+        if(btn.hasClass('act-follow-user')) {
+            listener = follow_user;
+        } else if(btn.hasClass('act-unfollow-user')) {
+            listener = unfollow_user;
+        }
+		
+        $j(this).click(listener);
+    });
+}
+function get_scrolltop(){
+    try{
+        if(window.pageYOffset!=undefined)
+            return window.pageYOffset;
+        return window.document.body.scrollTop;
+    }catch(err){
+        try{
+            return window.document.body.scrollTop;
+        }catch(err2){
+            return 0;
+        }
+    }
+}
+jQuery(function() {
+    var lock = false;
+    
+    jQuery(window).resize(function(){
+        if(jQuery(window).width() < 1100) {
+            jQuery('#toTop').hide();
+            return;
+        }
+    });
+    
+    jQuery(document).scroll(function(){
+        if(jQuery(window).width() < 1100) {
+            jQuery('#toTop').hide();
+            return;
+        }
+	    
+        if(get_scrolltop() < jQuery(window).height()) {
+            jQuery('#toTop').hide();
+        } else {
+            jQuery('#toTop').show();
+        }
+        var height = jQuery(document).height();
+        if(get_scrolltop() < (height*(1/4))) {
+            if(lock != 'hide' && lock != 'all') {
+                lock = 'hide';
+                jQuery(".notifical-box-upcoming").animate({
+                    right:"-360px"
+                },"slow");
+            }
+        } else {
+            if(lock != 'show' && lock != 'all') {
+                lock = 'show';
+                jQuery(".notifical-box-upcoming").animate({
+                    right:"10px"
+                },"slow");
+            }
+        }
+    });
+    /* ManhTienpt: Slide Hot Upcoming */ 		
+    var obj = jQuery('#linkHotUpcomingslider');
+    var s = jQuery("#linkHotUpcomingslider ul > li").length;
+    var w = jQuery("li", obj).width(); 
+    //var h = jQuery("li", obj).height(); 
+    obj.width(w+20); 
+    //obj.height(h); 
+    obj.css("overflow","hidden");
+    var ts = s-1;
+    var rand = randomNumber(0,ts);
+    var t = rand;
+	
+    jQuery("ul", obj).css('width',s*(w + s*20));//20 = padding :D
+	
+    jQuery("#thisShowHotUpcoming").html((t+1)+'/'+s);
+    jQuery("#nextBtn").click(function(){		
+        animate("next");
+    });
+    jQuery("#prevBtn").click(function(){		
+        animate("prev");				
+    });	
+    function disabledBtnHotUpcoming() {
+        if(t==ts) {
+            jQuery("#nextBtn").addClass('disabled').css('cursor','default');
+        } else {
+            jQuery("#nextBtn").removeClass('disabled').css('cursor','pointer');
+        };
+        if (t==0) {
+            jQuery("#prevBtn").addClass('disabled').css('cursor','default');
+        } else {
+            jQuery("#prevBtn").removeClass('disabled').css('cursor','pointer');
+        };
+    }
+    /* ManhTienpt: Lần đầu tiên load hiện ngẫu nhiên 1 tin trong list */ 
+    first_load_random_item();
+    function randomNumber(min, max) {
+        var randomNum = Math.floor(Math.random() * (max - min + 1)) + min;
+        return randomNum;
+    }
+    function first_load_random_item() {
+        var p_rand = (rand*(w+20)*-1);
+        jQuery("#thisShowHotUpcoming").html((rand+1)+'/'+s);
+        jQuery("ul",obj).css('margin-left', p_rand);
+        disabledBtnHotUpcoming();
+    }
+    disabledBtnHotUpcoming();
+    function animate(dir){
+        var ot = t;				
+        switch(dir){
+            case "next":
+                t = (ot>=ts) ? (false ? 0 : ts) : t+1;						
+                break; 
+            case "prev":
+                t = (t<=0) ? (false ? ts : 0) : t-1;
+                break; 
+            default:
+                break; 
+        };	
+        var speed = 400;						
+        var p = (t*(w+20)*-1);
+        jQuery("#thisShowHotUpcoming").html((t+1)+'/'+s);
+        jQuery("ul",obj).animate(
+        {
+            marginLeft: p
+        }, 
+        speed
+        );
+        disabledBtnHotUpcoming();			
+    };
+	
+	
+    jQuery("#close_hotupcoming").click(function(){
+        lock = 'all';
+        jQuery(".notifical-box-upcoming").animate({
+            right:"-360px"
+        },"slow");
+        return false;
+    });
+	
+    jQuery("#toTop").click(function (event) {
+        jQuery("html, body").animate({
+            scrollTop: "0px"
+        }, 'slow');
+    });
+        
+    if(isLoggedIn){
+        active_icon_hover();
+
+
+        RegEvent_NewsItem();
+        RegEvent_ProfileDashboard();
+        RegEvent_BtnClick();
+        RegEvent_FollowChannel_ViewMore();
+    }
+    RegEvent_MedalHover();
+    RegEvent_NavigationChannel();
+    RegEvent_TopSearch();
+    RegEvent_ChannelWarningHover();	
+    RegEvent_PostLinkClick();      
+	
+    //submit code sms
+    jQuery('#btn_code_sms').live('click', function(){
+        //jQuery("#ajaxLoading").show();
+        var btn_submit = jQuery('#btn_code_sms');
+        btn_submit.attr('disabled','disabled');
+        var sms_code=jQuery('#txt_code').val();
+	   	 
+	   
+        var query = "sms_code=" + sms_code;
+		
+		
+        $j.post(my_base_url+my_pligg_base+"/ajaxSmsPost", query, 
+            function(result) {
+			    
+                if(result=="success"){
+                    alert("Kích hoạt sms thành công!");
+                    //close thickbox
+                    tb_remove();
+                }
+                else{
+                    jQuery("#span_error").remove();
+
+                    jQuery('#sms_error').prepend("<span id='span_error'>Mã xác thực sai,xin vui lòng nhập lại!</span>");
+				  
+                    btn_submit.removeAttr('disabled');
+                }
+            }
+            );
+        return false;
+    });
+});
+
+
+/* Hide and load another Follow Suggestion 
+ * LinhDB
+ * */
+function removeChannelFollowSuggestion(id,type) {
+    if (timeOutPromoteFollowId != null)
+        clearTimeout(timeOutPromoteFollowId);
+    $j("#ajaxLoading").show();
+    $j("#suggest-friend-link-"+id).fadeOut(1000);
+    $j.ajax({
+        type: "POST",
+        url: my_base_url+my_pligg_base+"/actions/connect/ajaxChannelFollowSuggestionRemove.php",
+        data: "id="+id+"&type="+type,
+        success: function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);		
+            } else {
+                if (result!="NA") {
+                    $j("#channel_friend_suggest").after(result);
+                    $j("#channel_friend_suggest").remove();	
+                    //Reload thickbox
+                    $j('.thickbox').each(function(i) {
+                        $j(this).unbind('click');
+                    });
+                    tb_init('a.thickbox, area.thickbox, input.thickbox');				
+                }else {
+                    $j("#channel_friend_suggest").hide();
+                }
+            }
+            $j("#ajaxLoading").hide();			
+        }
+    });
+    return false;	
+}
+// Show Channel-Group in User Directory 
+// by longcaohoang@vccorp.vn - 2011.01.25
+function ajaxChannelGroupUserDirectory(channel_group_id) {
+    $j("#ajaxLoading").show();
+    $j.ajax({
+        type: "POST",
+        url: my_base_url+my_pligg_base+"/actions/ajax/ajaxChannelGroupViewUser.php",
+        data: "channel_group_id="+channel_group_id,
+        success: function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);		
+            } else {
+                if (result!="NA") {
+                    $j("#user_directory_channel_group").html(result);
+                }
+            }
+            $j("#ajaxLoading").hide();	
+        }
+    });
+    return false;	
+}
+// Remove suggesstion user in User Directory
+// by longcaohoang@vccorp.vn - 2011.01.25
+function removeFollowSuggestionInUserDirectory(id) {
+    removeFollowSuggestionFromLink(id,'1');
+    $j("#following-suggestion-" + id).hide();
+    return false;
+}
+function ajaxUserRemoveFriendSuggestion(suggestion_user_id,feed_id) {
+    $j("#ajaxLoading").show();
+    $j.ajax({
+        type: "POST",
+        url: my_base_url+my_pligg_base+"/actions/ajax/ajaxUserRemoveFriendSuggestion.php",
+        data: "suggestion_user_id=" + suggestion_user_id+"&feed_id="+feed_id,
+        success: function(result) {
+            if (/ERROR/.test(result)) {
+                result = result.substring(7, result.length);
+                window.alert(result);		
+            } else {
+                if (result!="NA") {
+                    $j("#friend_suggestion_" + suggestion_user_id).remove();
+                }
+            }
+            $j("#ajaxLoading").hide();
+        }
+    });
+    return false;
+}
+
+function show_sms_active_box(result, action_code) {
+    tb_show(result, '/actions/linkView/linkView.php#TB_inline?height=290&width=530&inlineId=sms_box&modal=true');
+	
+    var mess = [];
+	
+    switch(action_code) {
+        case 'vote':
+            mess.push('gửi bình chọn');
+            mess.push('Bình chọn');
+            break;
+        case 'link':
+            mess.push('gửi link');
+            mess.push('Link');
+            break;
+        case 'reshare':
+            mess.push('loan tin');
+            mess.push('Việc loan tin');
+            break;
+        default:
+            mess.push('gửi bình luận');
+            mess.push('Bình luận');
+    }
+	
+    $j('#sms_box_action_mess').html(mess[0]);
+    $j('#sms_box_action_mess2').html(mess[1]);
+}
+
+function clean_sms_box() {
+    $j('#txt_code').val('');
+    $j("#span_error").remove();
+    $j('#btn_code_sms').removeAttr('disabled');
+}
+
+function ajaxGameRequestRemoveRequest(request_id) {
+    var cf = confirm('Bạn muốn bỏ loại request này?');
+    if(cf){
+        $j.post(my_base_url+my_pligg_base+"/ajaxGameRequestRemoveRequest", "request_id="+request_id, 
+            function(result) {
+                if(result == 'OK') {
+                    var request = $j("#game_request_" + request_id);
+
+                    if(request.hasClass('first')) {
+                        $j(request.get(0).nextSibling).addClass('first');
+                    }
+
+                    request.remove();
+                } else {
+                    alert(result);
+                }
+            },"text");
+    }
+    return false;
+}
+
+function ajaxGameRequestBlockSender(friend_id, friend_name) {
+    var cf = confirm('Bạn muốn chặn request từ ' + friend_name + '?');
+    if(cf){
+        $j.post(my_base_url+my_pligg_base+"/ajaxGameRequestBlockSender", "friend_id=" + friend_id, 
+            function(result) {
+                eval("var result="+result);
+					
+                if(result.CODE == 'OK') {						
+                    for( var x = 0; x < result.DELETED.length; x ++ ) {
+                        var request = $j("#game_request_" + result.DELETED[x]);
+
+                        if(request.hasClass('first')) {
+                            $j(request.get(0).nextSibling).addClass('first');
+                        }
+
+                        request.remove();
+                    }
+                } else {
+                    alert(result.MESSAGE);
+                }
+            },"text");
+    }
+    return false;
+}
+	
+function updateTime(parent, skipSetTimeout) {
+    jQuery('.mrk-time', parent ? parent : document.body).each(function(){
+        var obj = jQuery(this);
+        var timestamp = obj.attr('rel');
+        var current_timestamp = (new Date()).getTime()/1000;
+        obj.html(parseDateAgo(current_timestamp-timestamp, 0, 0));
+    });
+		
+    if(!skipSetTimeout) {
+        updateTimeTimer = setTimeout(updateTime, 10000);
+    }
+}
+	
+function parseDateAgo(time, counter, pos) {
+    var unit = [];
+    unit.push({
+        val:60*60*24*365, 
+        label: 'năm'
+    });
+    unit.push({
+        val:60*60*24*30, 
+        label: 'tháng'
+    });
+    unit.push({
+        val:60*60*24, 
+        label: 'ngày'
+    });
+    unit.push({
+        val:60*60, 
+        label: 'giờ'
+    });
+    unit.push({
+        val:60, 
+        label: 'phút'
+    });
+    unit.push({
+        val:1, 
+        label: 'giây'
+    });
+		
+    var date = '';
+		
+    for(var x = pos; x < unit.length; x ++) {
+        var val = Math.floor(time/unit[x].val);
+			
+        if(val > 0) {
+            date += val + ' ' + unit[x].label;
+            /*
+			if(counter < 1) {
+				var _time = time%unit[x].val;
+				
+				if(_time > 0) {
+					date += ' ' + parseDateAgo(_time, counter + 1, x + 1);
+				}
+			}*/
+				
+            break;
+        }
+    }
+		
+    if(date == '') {
+        date = 1 + ' giây';
+    }
+		
+    if(counter == 0) {			
+        date += time < 0 ? ' nữa' : ' ';
+    }
+	
+    return date;
+}
+/* ManhTienpt:  */ 
+function getSceneDim() {
+    var dim = {
+        w: jQuery(window).width(), 
+        h: jQuery(window).height()
+    };
+
+    if(dim.w < 800) {
+        dim.w = 800;
+    }
+
+    if(dim.h < 600) {
+        dim.h = 600;
+    }
+
+    return dim;
+}
+
+function checkCookiesBookmarkletButton() {
+    var cookies_bm = jQuery.cookie('bookmarkletNewCheck');
+    if(!cookies_bm || cookies_bm == null) {
+        jQuery(".bm-tooltip").show();
+        jQuery(".bm-tooltip > .close").click(function(){
+            jQuery(".bm-tooltip").hide();
+            jQuery.cookie('bookmarkletNewCheck', '1', {expires: 365, path: '/', domain: 'linkhay.com'});
+        });
+        
+    }
+}
+
+
+jQuery(document).ready(function(){
+    updateTime();
+    checkCookiesBookmarkletButton();
+    jQuery('.mrk-fb-render-in-page').each(function() {
+            renderFBLikeInPage(jQuery(this));
+    });
+});

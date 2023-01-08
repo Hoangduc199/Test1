@@ -1,0 +1,613 @@
+(function($, window, document) {
+    var dialogGifContainer;
+    var dialogStickerContainer;
+    var stickerData;
+    var collectionData;
+    $.fn.linkHayStickerGifPopup = function(options) {
+        // default options
+        var editor = null;
+        const settings = $.extend({
+            // container: 'sticker-gif-container'
+        }, options);
+
+        var element = $(this);
+
+        var stickerGifSelection;
+
+        var gifOffset = 0;
+
+        var urls = {
+            gif: {
+                loadCollection: linkhay_url + '/gif/common/loadCollection',
+                search: linkhay_url + '/gif/common/search'
+            },
+            sticker: {
+                loadData: linkhay_url + '/sticker/common/loadData'
+            }    
+        }
+
+        var initTemplate = function() {
+            const templates = 
+                {
+                    gif: {
+                        dialog: `<div id="gif-box-${settings.editorId}" class="sticker-gif-container gif-box">
+                                    <div class="top-bar">
+                                        <div class="search-gif">
+                                            <input type="text" placeholder="Enter keywords here to search GIFs..." /><i class="fa fa-search"></i>
+                                        </div>
+                                        <div class="upload-btn osc-uploader">
+                                            <div class="drag-drop-area"><span>Drop here to upload</span></div>
+                                            <div class="browser-btn">
+                                                <input type="file" tabindex="-1" accept=".mkv, .gif, .avi, .flv, .mp4, .3gp">
+                                                <div><i class="fa fa-plus"></i> Upload new GIF</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="gif-list">
+                                        <ul>
+                                        </ul>
+                                    </div>
+                                </div>`
+                    },
+                    sticker: {
+                        dialog: `<div id="sticker-box-${settings.editorId}" class="sticker-gif-container sticker-box">
+                                    <div class="top-bar">
+                                        <div class="sticker-list">
+                                            <ul class="sticker-collection"></ul>
+                                            <div class="clear"></div>
+                                            <div class="more-list">
+                                                <i class="fa fa-plus-circle" alt=""></i>
+                                                <span>5+</span>
+                                            </div>
+                                            <div class="previous-btn"><i class="fa fa-angle-left"></i></div>
+                                            <div class="next-btn"><i class="fa fa-angle-right"></i></div>
+                                        </div>
+                                        <div class="add-btn"><i class="fa fa-plus"></i> Upload sticker</div>
+                                    </div>
+                                    <div class="sticker-item-list"></div>
+                                </div>`
+                    }
+                }
+            
+
+            if ($('#gif-box-' + settings.editorId, element).length <= 0) {
+                //$(element).append(templates.gif.dialog + templates.sticker.dialog);
+                $('.quill-linkhay-editor .quill-editor-tabs').append(templates.gif.dialog + templates.sticker.dialog);
+
+                dialogGifContainer = $('#gif-box-' + settings.editorId);
+                dialogStickerContainer = $('#sticker-box-' + settings.editorId);
+
+                var gifList = dialogGifContainer.find('.gif-list ul');
+                if (gifList.find('li').length <= 0) {
+                    loadGifCollection(gifList);
+                }
+                loadStickers();
+            } 
+
+        };
+
+        var setupActions = function() {
+
+            dialogGifContainer.find('.gif-list li').off().on('click', selectGif);
+
+            dialogGifContainer.find('.search-gif input').on('change', changeGifKeyword);
+            
+            dialogStickerContainer.find('.sticker-item-list .sticker-img').off().on('click', selectSticker);
+
+            dialogStickerContainer.find('.sticker-collection li').on('click', selectCollection);
+
+            dialogStickerContainer.find('.next-btn').on('click', collectionTurnRight);
+
+            dialogStickerContainer.find('.previous-btn').on('click', collectionTurnLeft);
+
+            dialogGifContainer.find('.gif-list').on('scroll', gifLoadmore);
+            
+            // $(editor).on('mouseleave', closeQuillModal);
+            $(document).on('click', clickDocument);
+            
+        };
+
+        var removeActions = function() {
+
+            dialogGifContainer.find('.gif-list li').off('click', selectGif);
+
+            dialogGifContainer.find('.search-gif input').off('change', changeGifKeyword);
+            
+            dialogStickerContainer.find('.sticker-item-list .sticker-img').off('click', selectSticker);
+
+            dialogStickerContainer.find('.sticker-collection li').off('click', selectCollection);
+
+            dialogStickerContainer.find('.next-btn').off('click', collectionTurnRight);
+
+            dialogStickerContainer.find('.previous-btn').off('click', collectionTurnLeft);
+
+            dialogGifContainer.find('.gif-list').off('scroll', gifLoadmore);  
+        
+            // $(editor).off('mouseleave', closeQuillModal);
+            $(document).off('click', clickDocument);
+
+            $('.quill-editor-tab-item[data-tab="gifs"], .quill-editor-tab-item[data-tab="stickers"]').removeClass('active');
+        };
+
+        this.showGif = function(offset) {
+            dialogStickerContainer.removeClass('active');
+            // if (dialogStickerContainer.hasClass("active")) {
+            //     //hide modal
+            //     removeActions();
+            //     dialogStickerContainer.removeClass('active');
+            // }
+            // if (dialogGifContainer.hasClass("active")) {
+            //     //hide modal
+            //     removeActions();
+            //     dialogGifContainer.removeClass('active');
+            //     return;
+            // }
+            toggleModal('gif', offset);
+        };
+
+        this.showSticker = function(offset) {
+            dialogGifContainer.removeClass('active');
+            // if (dialogGifContainer.attr('class').includes("active")) {
+            //     //hide modal
+            //     removeActions();
+            //     dialogGifContainer.removeClass('active');
+            // }
+            // if (dialogStickerContainer.attr('class').includes("active")) {
+            //     //hide modal
+            //     removeActions();
+            //     dialogStickerContainer.removeClass('active');
+            //     return;
+            // }
+            toggleModal('sticker', offset);
+        };
+
+        this.initialize = function() {
+            initTemplate();
+            return this;
+        };
+
+        this.setEditor = function(e) {
+            editor = e;
+            return this;                
+        }
+
+        var toggleModal = function(type, offset) {
+            setupActions();
+
+            if (typeof(offset) !== 'undefined') {
+                switchTab(type, offset);
+            }
+            
+        }
+
+        var closeQuillModal = function() {
+            if (dialogGifContainer.hasClass('active') && $("#" + dialogGifContainer.attr('id') + ":hover").length === 0) {
+                removeActions();
+                dialogGifContainer.removeClass('active');
+            }
+            
+
+            if (dialogStickerContainer.hasClass('active') && $("#" + dialogStickerContainer.attr('id') + ":hover").length === 0) {
+                removeActions();
+                dialogStickerContainer.removeClass('active');
+            }
+        }
+
+        var clickDocument = function(e) {
+            var container = $(".sticker-gif-container");
+
+            // if the target of the click isn't the container nor a descendant of the container
+            if ((!container.is(e.target) && container.has(e.target).length === 0) &&
+                (!$(e.target).hasClass('quill-editor-tab-item') && $(e.target).parents('.quill-editor-tab-item').length === 0))
+            {
+                closeQuillModal();
+                $('.quill-editor-tab-item[data-tab="gifs"], .quill-editor-tab-item[data-tab="stickers"]').removeClass('active');
+                $(document).unbind( 'click', clickDocument);
+            }
+        }
+
+        //sticker-gif actions:
+        var selectGif = function() {
+            quill.focus();
+
+            stickerGifSelection = {
+                id: $(this).data('id'),
+                video_url: $(this).data('video-url'),
+                videoUrl: $(this).data('video-url'),
+                coverUrl: $(this).data('cover-url'),
+                width: $(this).data('width'),
+                height: $(this).data('height'),
+            };
+            dialogGifContainer.removeClass('active');
+            removeActions();
+            let editorCursorIndex = quill.getSelection() ? (quill.getSelection().index ? quill.getSelection().index + 1 : 1)  : quill.getLength();
+            quill.insertEmbed(editorCursorIndex - 1, 'commentGif', {
+                id: stickerGifSelection.id,
+                src: stickerGifSelection.videoUrl,
+                video_url: stickerGifSelection.videoUrl,
+                width: stickerGifSelection.width,
+                height: stickerGifSelection.height
+            });
+            editor.stickerGifInitActions();
+            quill.setSelection(editorCursorIndex, Quill.sources.USER);
+        };
+
+        //select-sticker actions:
+        var selectSticker = function() {
+            quill.focus();
+
+            stickerGifSelection = {
+                'imageUrl': $(this).data('sticker-src'),
+            };
+            dialogStickerContainer.removeClass('active');
+            removeActions();
+            let editorCursorIndex = quill.getSelection() ? (quill.getSelection().index ? quill.getSelection().index + 1 : 1)  : quill.getLength();
+
+            quill.insertEmbed(editorCursorIndex - 1, 'sticker', {
+                src: stickerGifSelection.imageUrl
+            });
+            editor.stickerGifInitActions();
+            quill.setSelection(editorCursorIndex, Quill.sources.USER);
+        }
+
+        //select-sticker collection actions:
+        var selectCollection = function() {
+            let collectionId = $(this).data('id');
+            removeActions();
+            renderStickerItems(stickerData[collectionId]);
+            setupActions();
+        }
+
+        var changeGifKeyword = function() {
+            let gifKeyword = $(this).val();
+            loadGif({keywords: gifKeyword, offset: 0, willRefresh: true});
+        }
+
+        var loadGifCollection = function(gifList) {
+            if (typeof collectionData !== 'undefined') 
+            {
+                var gifHtml = renderGifCollection(collectionData);    
+                gifHtml.length > 0 ? gifList.append(gifHtml) : gifList.empty();
+            } else 
+            {
+                $.ajaxq('url_gif_load_collection', {
+                    type: 'post',
+                    xhrFields: {withCredentials: true},
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-OSC-Cross-Request': 'OK'
+                    },
+                    url: urls.gif.loadCollection,
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.result !== 'OK') {
+                            alert(response.message);
+                        } else {
+                            var collectionData = response.data.items,
+                                gifHtml = '';
+                            if (collectionData && collectionData.length <= 0) {
+                                gifHtml.length > 0 ? gifList.append(gifHtml) : gifList.empty();
+                            } else {
+                                for (let i = 0; i < collectionData.length; i++) {
+                                    const item = collectionData[i];
+                                    gifHtml += `<li
+                                        data-type="gif" 
+                                        data-video-url="${item.video_url}"
+                                        data-cover-url="${item.cover_url}"
+                                        data-width="${item.width}" data-height="${item.height}"
+                                        style="display: inline-block; width: 190px; height: 190px;"
+                                        data-id="${item.id}">
+                                        <video
+                                            muted="muted" preload="metadata" loop="loop"
+                                            autoplay="autoplay">
+                                            <source type="video/mp4"
+                                                src="${item.video_url}">
+                                            Your browser does not support the video tag.
+                                        </video>
+                                    </li>`;
+                                }
+                                gifList.append(gifHtml);
+                            }
+                        }
+                    }
+                })
+            }
+        }
+
+        var renderGifCollection = function () {
+            let gifHtml = '';
+            if (collectionData && collectionData.length > 0) {
+                for (let i = 0; i < collectionData.length; i++) {
+                    const item = collectionData[i];
+                    gifHtml += `<li
+                    data-type="gif" 
+                    data-video-url="${item.video_url}"
+                    data-cover-url="${item.cover_url}"
+                    data-width="${item.width}" data-height="${item.height}"
+                    style="display: inline-block; width: 190px; height: 190px;"
+                    data-id="${item.id}">
+                    <video
+                        muted="muted" preload="metadata" loop="loop"
+                        autoplay="autoplay">
+                        <source type="video/mp4"
+                            src="${item.video_url}">
+                        Your browser does not support the video tag.
+                    </video>
+                </li>`;
+                }
+            }
+            
+            return gifHtml;
+        }
+
+        var loadGif = function({keywords: keywords, offset: offset, willRefresh = true}) {
+            $.get(urls.gif.search + "?keywords=" + keywords + "&offset=" + offset, function(response, status){
+                let data = response.data;
+                if (status == 'success' && typeof(data.items) !== 'undefined') {
+                    if (willRefresh) {
+                    refreshGifList();
+                    }                    
+                    let gifContainer = dialogGifContainer.find('.gif-list > ul');
+                    for (let i = 0; i < data.items.length; i++) {
+                        let firstItem  = {};
+                        let secondItem = {};
+                        let thirdItem  = {};
+                        if ((i + 1) % 3 == 1) {
+                            firstItem = data.items[i];
+                            secondItem = ((i + 1) + 1 > data.items.length) ? {} : data.items[i + 1];
+                            thirdItem = ((i + 2) + 1 > data.items.length) ? {} : data.items[i + 2];
+                        } else {
+                            continue;
+                        }
+
+                        let firstRatio = typeof(firstItem.width) !== 'undefined' ? firstItem.width / firstItem.height : 0;
+                        let secondRatio = typeof(secondItem.width) !== 'undefined' ? secondItem.width / secondItem.height : 0;
+                        let thirdRatio = typeof(thirdItem.width) !== 'undefined' ? thirdItem.width / thirdItem.height : 0;
+
+
+                        // let height = (data.items[i].height / data.items[i].width) * 190;
+                        let height = 190;
+                        let gifHtml =   (firstItem !== {} ?
+                                        `<li
+                                            data-id="${firstItem.id}"
+                                            data-type="gif" 
+                                            data-video-url="${firstItem.video_url}"
+                                            data-cover-url="${firstItem.cover_url}"
+                                            data-width="${firstItem.width}" data-height="${firstItem.height}"
+                                            style="display: inline-block; width: 190px; height: ${height}px;"
+                                            data-id="${firstItem.id}">
+                                            <video
+                                                muted="muted" preload="metadata" loop="loop"
+                                                autoplay="autoplay">
+                                                <source type="video/mp4"
+                                                    src="${data.items[i].video_url}">
+                                                Your browser does not support the video tag.
+                                            </video>
+                                        </li>` : "") +
+                                        (typeof(secondItem.video_url) !== 'undefined' ?
+                                        `<li
+                                            data-id="${secondItem.id}"
+                                            data-type="gif" 
+                                            data-video-url="${secondItem.video_url}"
+                                            data-cover-url="${secondItem.cover_url}"
+                                            data-width="${secondItem.width}" data-height="${secondItem.height}"
+                                            style="display: inline-block; width: 190px; height: ${height}px;"
+                                            data-id="${secondItem.id}">
+                                            <video
+                                                muted="muted" preload="metadata" loop="loop"
+                                                autoplay="autoplay">
+                                                <source type="video/mp4"
+                                                    src="${secondItem.video_url}">
+                                                Your browser does not support the video tag.
+                                            </video>
+                                        </li>` : "") +
+                                        (typeof(thirdItem.video_url) !== 'undefined' ?
+                                        `<li
+                                            data-id="${thirdItem.id}"
+                                            data-type="gif" 
+                                            data-video-url="${thirdItem.video_url}"
+                                            data-cover-url="${thirdItem.cover_url}"
+                                            data-width="${thirdItem.width}" data-height="${thirdItem.height}"
+                                            style="display: inline-block; width: 190px; height: ${height}px;"
+                                            data-id="${thirdItem.id}">
+                                            <video
+                                                muted="muted" preload="metadata" loop="loop"
+                                                autoplay="autoplay">
+                                                <source type="video/mp4"
+                                                    src="${thirdItem.video_url}">
+                                                Your browser does not support the video tag.
+                                            </video>
+                                        </li>` : "");
+
+                        gifContainer.append(gifHtml);
+                    }
+                    //initial events for new element
+                    dialogGifContainer.find('.gif-list li').off('click', selectGif);
+                    dialogGifContainer.find('.gif-list li').on('click', selectGif);
+                } else {
+                    //error
+                }
+            });
+        }
+
+        var gifLoadmore = function(){
+            if($(this).scrollTop() + $(this).innerHeight() >= $(this)[0].scrollHeight) {
+                let gifKeyword = dialogGifContainer.find('.search-gif input').val();
+                if (gifKeyword && gifKeyword.length > 0) {
+                    gifOffset += 25;
+                    loadGif({keywords: gifKeyword, offset: gifOffset, willRefresh: false});
+                }
+            }
+        }
+
+        var refreshGifList = function() {
+            dialogGifContainer.find('.gif-list > ul').empty();
+            dialogGifContainer.find('.gif-list').scrollTop(0);
+        }
+
+        var loadStickers = function() {
+            if (typeof stickerData !== 'undefined') 
+            { 
+                renderStickerList(stickerData);
+            } else {
+                $.ajaxq('url_sticker_load_data', {
+                    type: 'post',
+                    xhrFields: {withCredentials: true},
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-OSC-Cross-Request': 'OK'
+                    },
+                    url: urls.sticker.loadData,
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.result !== 'OK') {
+                            alert(response.message);
+                        } else {
+                            stickerData = response.data.stickers;
+                            renderStickerList(stickerData);
+                        }
+                    }
+                });    
+            }
+        }
+        var renderStickerList = function(stickers) {
+            if (Object.keys(stickers).length > 0) {
+                let stickerListContainer = dialogStickerContainer.find('.sticker-item-list');
+                let stickerCollectionContainer = dialogStickerContainer.find('.sticker-collection');
+                stickerListContainer.empty();
+                for (const [key, value] of Object.entries(stickers)) {
+                    if (key == 0) {
+                        for (var i = 0; i < value.items.length; i++) {
+                            if (typeof(value.items[i].url) == 'undefined') {
+                                continue;
+                            }
+
+                            let stickerHtml = `<div class="sticker-img" data-sticker-src="${value.items[i].url}"><img src="${value.items[i].url}">
+                                                    </div>`;
+                            stickerListContainer.append(stickerHtml);
+                        }
+                        
+                        stickerCollectionContainer.append(`<li data-id="${key}"><i class="fa fa-clock-o"></i></li>`)
+                    }
+
+                    if (typeof(value.cover_url) == 'undefined') {
+                        continue;
+                    }
+
+                    
+                    let stickerCollectionHtml = `
+                        <li data-id="${value.id}"><img src="${value.cover_url}"></li>
+                    `;
+
+                    stickerCollectionContainer.append(stickerCollectionHtml);                   
+                }
+
+   
+            }
+            
+        }
+
+        var renderStickerItems = function(sticker) {
+
+            let stickerListContainer = dialogStickerContainer.find('.sticker-item-list');
+            let stickerCollectionContainer = dialogStickerContainer.find('.sticker-collection');
+            stickerListContainer.empty();
+
+            for (var i = 0; i < sticker.items.length; i++) {
+                if (typeof(sticker.items[i].url) == 'undefined') {
+                    continue;
+                }
+
+                let stickerHtml = `<div class="sticker-img" data-sticker-src="${sticker.items[i].url}"><img src="${sticker.items[i].url}">
+                                        </div>`;
+                stickerListContainer.append(stickerHtml);
+            }             
+        }
+
+        var collectionTurnRight = function() {
+            let bar = dialogStickerContainer.find('.sticker-collection');
+            let maxLeftNegativeOffset = (bar.outerWidth() - 252) * -1;
+            let stepRange = (maxLeftNegativeOffset * -1) / 10;
+            let currentLeft = bar.position().left;
+            bar.css('left', currentLeft - stepRange);
+            if (currentLeft - stepRange < maxLeftNegativeOffset) {
+                bar.css('left', maxLeftNegativeOffset);
+            }
+        }
+
+        var collectionTurnLeft = function() {
+            let bar = dialogStickerContainer.find('.sticker-collection');
+            let maxLeftNegativeOffset = (bar.outerWidth() - 252) * -1;
+            let stepRange = (maxLeftNegativeOffset * -1) / 10;
+            let currentLeft = bar.position().left;
+            bar.css('left', currentLeft + stepRange);
+            if (currentLeft + stepRange > 0) {
+                bar.css('left', 0);
+            }
+        }
+
+        //end sticker-gif actions:
+
+        var closeModalQuickComment = function(e) {
+            e.preventDefault();
+            quickCommentContainer.removeClass('active');
+            removeActions();
+            quickCommentContainer.find('.icon-html').empty();
+            quickCommentContainer.find('.icon-message').empty();
+        }
+
+        var submitForm = function (e) {
+            $(e.target).attr("disabled", true);
+            document.body.classList.remove('body-scroll');
+            dialogGifContainer.find('.modal-layout').addClass('hidden');
+            var type   = $(e.target).attr('data-type');
+            var url    = dialogGifContainer.find('.tab-link-url').val();
+            var embed  = dialogGifContainer.find('.tab-embed-text').val();
+            // var option = $(e.target).attr('data-option');
+
+            dialogGifContainer.find('.tab-link-url').val('');
+            dialogGifContainer.find('.tab-embed-text').val('');
+            dialogGifContainer.find('.tab-embed-suggest-layout').addClass('hidden');
+            dialogGifContainer.find('.tab-link-suggest-layout').removeClass('active');
+            dialogGifContainer.find('.image-preview-layout').addClass('hidden');
+            dialogGifContainer.find("#delete-url").attr('class','tab-link-delete-url hidden');
+            dialogGifContainer.find("#reset-url").attr('class','tab-link-reset-url hidden');
+            document.body.style.overflow = "";
+            removeActions();
+
+            //todo
+            const selectEditorId = this.getAttribute('data-editor-id');
+            switch (type) {
+                case 'image':
+                    insertImage();
+                    break;
+                case 'link':
+                    insertLink(url);
+                    break;
+                case 'embed':
+                    insertEmbed(embed);
+                    break;
+                default:
+                    break;
+            }
+
+        }
+
+        var switchTab = function(type, offset) {
+            switch(type) {
+                case "gif":
+                    // dialogGifContainer.css('left', Math.ceil(offset.left) - 1);
+                    // dialogGifContainer.css('top', offset.top + 30);
+                    dialogGifContainer.addClass('active');
+                    break;
+                case "sticker":
+                    // dialogStickerContainer.css('left', Math.ceil(offset.left) - 1);
+                    // dialogStickerContainer.css('top', offset.top + 30);
+                    dialogStickerContainer.addClass('active');
+                    break;
+            }
+        }
+
+        return this.initialize();
+    };
+})(jQuery, window, document);

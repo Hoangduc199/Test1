@@ -1,0 +1,92 @@
+(function ($) {
+    window.LHLinkPosterAbstract = function () {
+        this.check = function () {
+            this.test();
+        };
+
+        this._urlInfoCallback = function (info) {
+            var callback_func = '_urlInfoCallback_' + (this._link_type.charAt(0).toUpperCase() + this._link_type.slice(1));
+
+            if (typeof this[callback_func] === 'function') {
+                this[callback_func](info);
+            }
+        };
+
+        this._urlInfoCallback_Default = function (info) {
+
+        };
+
+        this._getDataCallback_Default = function (data) {
+            data.thumbnail = $('#link-post-thumbnail').val().trim();
+            data.embed = $('#link-post-embed').val().trim();
+        };
+
+        this._validateUrl = function (url) {
+            url = url.toString().trim();
+            return url === '' ? false : (/^((ftp|http)s?:)?\/\/(\.?([a-z0-9-]+))+\.[a-z]{2,6}(:[0-9]{1,5})?\/?(.*)*$/i).test(url);
+        };
+
+        this._getPostData = function () {
+            var data = {
+                link_url: $('#link-post-url').val().trim(),
+                title: $('#link-post-title').val().trim(),
+                description: $('#link-post-desc').val().trim(),
+                cat_id: parseInt($('#link-post-cat-selector').val()),
+                is_sensitive_16: $('#link-post-sensitive-16')[0] && $('#link-post-sensitive-16')[0].checked ? 1 : 0,
+                is_sensitive_authentic: $('#link-post-sensitive-authentic')[0] && $('#link-post-sensitive-authentic')[0].checked ? 1 : 0,
+                is_sensitive_just_kidding: $('#link-post-sensitive-just-kidding')[0] && $('#link-post-sensitive-just-kidding')[0].checked ? 1 : 0
+
+            };
+
+            var url_norequire = parseInt($('#link-post-url').attr('data-norequire'));
+
+            if (! isNaN(url_norequire) && url_norequire !== 1 && !this._validateUrl(data.link_url)) {
+                throw {field: 'link_url', message: 'URL không đúng định dạng'};
+            }
+
+            if (data.title === '') {
+                throw {field: 'title', message: 'Thông điệp chính không được rỗng'};
+            } else if (data.title.length < 2) {
+                throw {field: 'title', message: 'Thông điệp chính quá ngắn'};
+            }
+
+            var length = data.title.length;
+
+            if (data.description !== '') {
+                if (data.description.length < 2) {
+                    throw {field: 'description', message: 'Thông điệp phụ quá ngắn'};
+                }
+
+                length += data.description.length;
+            }
+
+            if (length > 200) {
+                throw {field: 'system', message: 'Tổng độ dài thông điệp chính và phụ không được nhiều hơn 200 ký tự'};
+            }
+
+            if (data.cat_id < 1) {
+                throw {field: 'category', message: 'Bạn cần chọn kênh để gửi tin vào'};
+            }
+
+            var callback_func = '_getDataCallback_' + (this._link_type.charAt(0).toUpperCase() + this._link_type.slice(1));
+
+            if (typeof this[callback_func] === 'function') {
+                this[callback_func](data);
+            }
+
+            return data;
+        };
+
+        this._updateLengthCounter = function () {
+            var length = 0;
+
+            length += this._wrap.find('#link-post-title').val().trim().length;
+            length += this._wrap.find('#link-post-desc').val().trim().length;
+
+            this._wrap.find('#link-post-length-counter .counter').html(length);
+            this._wrap.find('#link-post-length-counter')[length > parseInt(this._wrap.find('#link-post-length-counter .limit').text()) ? 'addClass' : 'removeClass']('error');
+        };
+
+        this._link_type = 'default';
+    };
+})(jQuery);

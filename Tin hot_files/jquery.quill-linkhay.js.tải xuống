@@ -1,0 +1,1816 @@
+window.LINKHAY_MENTION_USERS = window.LINKHAY_MENTION_USERS || [];
+var quill = null,
+    pluginTooltip = null;
+
+(function($, window, document) {
+    let logger = {
+        debug: function(message, data) {
+            console.log(message, data);
+        }
+    };
+
+    // let Block = Quill.import('blots/block');
+    // Block.tagName = 'div';
+    // Quill.register(Block);
+
+    $.fn.linkHayNewEditor = function(options) {
+        if (this.length > 1) {
+            logger.debug('Number of element need equal 1');
+            return;
+        }
+        var instance = this;
+        var element = $(this);
+        // var quill = null;
+        var pluginPopupModal = null;
+        var pluginStickerGifDialog = null;
+        var pluginTokenGiveModal = null;
+        var attachments = [];
+        var editorSelection = 0;
+        var tokenAttachment = null;
+        var tokenDefaultUser = null;
+
+        var urls = {
+            submit: linkhay_post_url + '/comment/item/addRawData',
+            edit: linkhay_post_url + '/comment/item/editRawData',
+            mention: linkhay_post_url + '/actions/ajax/ajaxGetUsersCommentToMention.php',
+            friend: linkhay_post_url + '/actions/user/getMentionFriendData.php',
+            upload: {
+                image: linkhay_post_url + '/comment/item/upload'
+            }
+        };
+        // default options
+        const settings = $.extend({
+            content: {
+                data: null,
+                html: null,
+                attachments: []
+            },
+            type: 'link',
+            comment_id: 0,
+            link_id: null,
+            parent_id: 0,
+            parent_comment_id: 0,
+            user_id: null,
+            mobile: false,
+            reply: false,
+            edit: false,
+            placeholder: 'Viết bình luận...',
+            title: {
+                new: 'Viết bình luận mới',
+                reply: 'Trả lời bình luận',
+                edit: 'Sửa bình luận'
+            },
+            button: {
+                submit: 'Gửi bình luận',
+                edit: 'Sửa bình luận'
+            },
+            editor: {
+                container: 'editor-container',
+                toolbar: 'toolbar-container'
+            },
+            attachments: 'editor-attachments',
+            className: {
+                hidden: 'hidden'
+            },
+            callback: {
+                destroy: null
+            },
+            icons: {
+                toolbars: {
+                    bold: `<i></i>`,
+                    italic: `<i></i>`,
+                    underline: `<i></i>`,
+                    blockquote: `<i></i>`,
+                    codeBlock: `<i></i>`,
+                    emoji: `<i></i>`,
+                    image: `<svg width="18" height="14" viewBox="0 0 18 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M2.16 1.4C1.76235 1.4 1.44 1.7134 1.44 2.1V11.9C1.44 12.2866 1.76235 12.6 2.16 12.6H15.84C16.2376 12.6 16.56 12.2866 16.56 11.9V2.1C16.56 1.7134 16.2376 1.4 15.84 1.4H2.16ZM0 2.1C0 0.940202 0.967065 0 2.16 0H15.84C17.0329 0 18 0.940202 18 2.1V11.9C18 13.0598 17.0329 14 15.84 14H2.16C0.967065 14 0 13.0598 0 11.9V2.1Z" fill="#888888"/>
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M4.68 4.2C4.48118 4.2 4.32 4.3567 4.32 4.55C4.32 4.7433 4.48118 4.9 4.68 4.9C4.87882 4.9 5.04 4.7433 5.04 4.55C5.04 4.3567 4.87882 4.2 4.68 4.2ZM2.88 4.55C2.88 3.5835 3.68589 2.8 4.68 2.8C5.67411 2.8 6.48 3.5835 6.48 4.55C6.48 5.5165 5.67411 6.3 4.68 6.3C3.68589 6.3 2.88 5.5165 2.88 4.55Z" fill="#888888"/>
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M13.1709 5.10502C13.4521 4.83166 13.9079 4.83166 14.1891 5.10502L17.7891 8.60503C18.0703 8.87839 18.0703 9.32161 17.7891 9.59497C17.5079 9.86834 17.0521 9.86834 16.7709 9.59497L13.68 6.58995L2.66912 13.795C2.38794 14.0683 1.93206 14.0683 1.65088 13.795C1.36971 13.5216 1.36971 13.0784 1.65088 12.805L13.1709 5.10502Z" fill="#888888"/>
+                            </svg>`,
+                    link: `<svg width="20" height="10" viewBox="0 0 20 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M5 1.66667C4.11594 1.66667 3.2681 2.01786 2.64298 2.64298C2.01786 3.2681 1.66667 4.11594 1.66667 5C1.66667 5.88405 2.01786 6.7319 2.64298 7.35702C2.95251 7.66655 3.31997 7.91208 3.72439 8.0796C4.12881 8.24711 4.56226 8.33333 5 8.33333H7.5C7.96024 8.33333 8.33333 8.70643 8.33333 9.16667C8.33333 9.6269 7.96024 10 7.5 10H5C4.34339 10 3.69321 9.87067 3.08658 9.6194C2.47995 9.36812 1.92876 8.99983 1.46447 8.53553C0.526784 7.59785 0 6.32608 0 5C0 3.67392 0.526784 2.40215 1.46447 1.46447C2.40215 0.526784 3.67392 0 5 0H7.5C7.96024 0 8.33333 0.373096 8.33333 0.833333C8.33333 1.29357 7.96024 1.66667 7.5 1.66667H5ZM11.6667 0.833333C11.6667 0.373096 12.0398 0 12.5 0H15C15.6566 0 16.3068 0.129329 16.9134 0.380602C17.52 0.631876 18.0712 1.00017 18.5355 1.46447C18.9998 1.92876 19.3681 2.47995 19.6194 3.08658C19.8707 3.69321 20 4.34339 20 5C20 5.65661 19.8707 6.30679 19.6194 6.91342C19.3681 7.52004 18.9998 8.07124 18.5355 8.53553C18.0712 8.99983 17.52 9.36812 16.9134 9.6194C16.3068 9.87067 15.6566 10 15 10H12.5C12.0398 10 11.6667 9.6269 11.6667 9.16667C11.6667 8.70643 12.0398 8.33333 12.5 8.33333H15C15.4377 8.33333 15.8712 8.24711 16.2756 8.0796C16.68 7.91208 17.0475 7.66655 17.357 7.35702C17.6666 7.04749 17.9121 6.68003 18.0796 6.27561C18.2471 5.87119 18.3333 5.43774 18.3333 5C18.3333 4.56226 18.2471 4.12881 18.0796 3.72439C17.9121 3.31997 17.6666 2.95251 17.357 2.64298C17.0475 2.33345 16.68 2.08792 16.2756 1.9204C15.8712 1.75289 15.4377 1.66667 15 1.66667H12.5C12.0398 1.66667 11.6667 1.29357 11.6667 0.833333Z" fill="#888888"/>
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M5.83333 5C5.83333 4.53976 6.20643 4.16667 6.66667 4.16667H13.3333C13.7936 4.16667 14.1667 4.53976 14.1667 5C14.1667 5.46024 13.7936 5.83333 13.3333 5.83333H6.66667C6.20643 5.83333 5.83333 5.46024 5.83333 5Z" fill="#888888"/>
+                            </svg>`,
+                    embed: `<svg width="20" height="12" viewBox="0 0 20 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M12.9936 0.251051C13.3486 -0.0836838 13.9242 -0.0836838 14.2792 0.251051L19.7338 5.39391C20.0888 5.72864 20.0888 6.27136 19.7338 6.60609L14.2792 11.7489C13.9242 12.0837 13.3486 12.0837 12.9936 11.7489C12.6385 11.4142 12.6385 10.8715 12.9936 10.5368L17.8053 6L12.9936 1.46323C12.6385 1.1285 12.6385 0.585786 12.9936 0.251051Z" fill="#888888"/>
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M7.00646 0.251051C7.36148 0.585786 7.36148 1.1285 7.00646 1.46323L2.19474 6L7.00646 10.5368C7.36148 10.8715 7.36148 11.4142 7.00646 11.7489C6.65144 12.0837 6.07583 12.0837 5.72081 11.7489L0.266267 6.60609C-0.0887555 6.27136 -0.0887555 5.72864 0.266267 5.39391L5.72081 0.251051C6.07583 -0.0836838 6.65144 -0.0836838 7.00646 0.251051Z" fill="#888888"/>
+                            </svg>`,
+                    gif: `<svg width="18" height="14" viewBox="0 0 18 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M2.16 1.4C1.76235 1.4 1.44 1.7134 1.44 2.1V11.9C1.44 12.2866 1.76235 12.6 2.16 12.6H15.84C16.2376 12.6 16.56 12.2866 16.56 11.9V2.1C16.56 1.7134 16.2376 1.4 15.84 1.4H2.16ZM0 2.1C0 0.940202 0.967065 0 2.16 0H15.84C17.0329 0 18 0.940202 18 2.1V11.9C18 13.0598 17.0329 14 15.84 14H2.16C0.967065 14 0 13.0598 0 11.9V2.1Z" fill="#888888"/>
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M4.68 4.2C4.48118 4.2 4.32 4.3567 4.32 4.55C4.32 4.7433 4.48118 4.9 4.68 4.9C4.87882 4.9 5.04 4.7433 5.04 4.55C5.04 4.3567 4.87882 4.2 4.68 4.2ZM2.88 4.55C2.88 3.5835 3.68589 2.8 4.68 2.8C5.67411 2.8 6.48 3.5835 6.48 4.55C6.48 5.5165 5.67411 6.3 4.68 6.3C3.68589 6.3 2.88 5.5165 2.88 4.55Z" fill="#888888"/>
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M13.1709 5.10502C13.4521 4.83166 13.9079 4.83166 14.1891 5.10502L17.7891 8.60503C18.0703 8.87839 18.0703 9.32161 17.7891 9.59497C17.5079 9.86834 17.0521 9.86834 16.7709 9.59497L13.68 6.58995L2.66912 13.795C2.38794 14.0683 1.93206 14.0683 1.65088 13.795C1.36971 13.5216 1.36971 13.0784 1.65088 12.805L13.1709 5.10502Z" fill="#888888"/>
+                            </svg>`,
+                },
+                close: `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M11.7489 0.251051C12.0837 0.585786 12.0837 1.1285 11.7489 1.46323L1.46323 11.7489C1.1285 12.0837 0.585786 12.0837 0.251051 11.7489C-0.0836838 11.4142 -0.0836838 10.8715 0.251051 10.5368L10.5368 0.251051C10.8715 -0.0836838 11.4142 -0.0836838 11.7489 0.251051Z" fill="#555555"/>
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M0.251051 0.251051C0.585786 -0.0836838 1.1285 -0.0836838 1.46323 0.251051L11.7489 10.5368C12.0837 10.8715 12.0837 11.4142 11.7489 11.7489C11.4142 12.0837 10.8715 12.0837 10.5368 11.7489L0.251051 1.46323C-0.0836838 1.1285 -0.0836838 0.585786 0.251051 0.251051Z" fill="#555555"/>
+                    </svg>`
+            }
+        }, options);
+
+        const title = settings.reply == false && settings.edit == false
+            ? settings.title.new : (settings.reply == true ? settings.title.reply : settings.title.edit);
+        const classTitle = settings.reply == false && settings.edit == false
+            ? 'new-comment' : (settings.reply == true ? 'reply-comment' : 'edit-comment');
+        const buttonSubmitText = settings.edit == true ? settings.button.edit : settings.button.submit;
+        const template = {
+            desktop: {
+                header: `<div class="quill-editor-header ${classTitle}">
+                            <h2>${title}</h2>
+                            <a href="javascript: void(0);" class="quill-editor-destroy">${settings.icons.close}</a>
+                        </div>`,
+                tab: `<div class="quill-editor-tabs">
+                            <a href="javascript: void(0);" class="quill-editor-tab-item active" data-tab="text"><span>Comment text</span></a>
+                            <a href="javascript: void(0);" class="quill-editor-tab-item" data-tab="gifs"><span>GIFs</span></a>
+                            <a href="javascript: void(0);" class="quill-editor-tab-item" data-tab="stickers"><span>Stickers</span></a>
+                            <a href="javascript: void(0);" class="quill-editor-tab-item give-token-tab" data-tab="token">
+                                <svg width="19" height="22" viewBox="0 0 19 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M14.5856 12.7813C12.6495 12.7813 11.0231 12.0842 10.197 11.0774V11.7486C10.197 12.0842 10.3261 12.4198 10.5068 12.7296C10.1712 12.6522 9.8356 12.6005 9.5 12.6005C9.1644 12.6005 8.80299 12.6522 8.46739 12.7296C8.67391 12.4198 8.77717 12.1101 8.77717 11.7486V11.0774C7.95109 12.1101 6.32473 12.7813 4.38859 12.7813C2.45245 12.7813 0.826087 12.0842 0 11.0774V11.7486C0 13.1943 1.96196 14.3818 4.38859 14.3818C5.00815 14.3818 5.6019 14.3044 6.14402 14.1753C5.98913 14.3818 5.83424 14.5883 5.70516 14.8207C5.29212 14.8981 4.85326 14.9239 4.38859 14.9239C2.45245 14.9239 0.826087 14.2269 0 13.2201V13.8397C0 15.2853 1.96196 16.4728 4.38859 16.4728C4.64674 16.4728 4.90489 16.447 5.16304 16.4212C5.13723 16.6019 5.13723 16.7568 5.13723 16.9375C5.13723 16.9375 5.13723 16.9375 5.13723 16.9633C4.90489 16.9891 4.64674 16.9891 4.38859 16.9891C2.45245 16.9891 0.826087 16.2921 0 15.2853V15.9565C0 17.4022 1.96196 18.5897 4.38859 18.5897C4.75 18.5897 5.0856 18.5639 5.39538 18.5122C6.06658 20.1644 7.6413 21.3261 9.52581 21.3261C11.4103 21.3261 12.9851 20.1644 13.6046 18.5122C13.9402 18.5639 14.25 18.5897 14.6114 18.5897C17.038 18.5897 19 17.4022 19 15.9565V15.2853C18.1739 16.3179 16.5476 16.9891 14.6114 16.9891C14.3533 16.9891 14.1209 16.9891 13.8886 16.9633C13.8886 16.9633 13.8886 16.9633 13.8886 16.9375C13.8886 16.7568 13.8886 16.5761 13.8628 16.4212C14.1209 16.447 14.3533 16.4728 14.6114 16.4728C17.038 16.4728 19 15.2853 19 13.8397V13.1685C18.1739 14.2011 16.5476 14.8723 14.6114 14.8723C14.1467 14.8723 13.7337 14.8465 13.3207 14.769C13.1916 14.5367 13.0367 14.3302 12.8818 14.1236C13.4239 14.2527 13.9918 14.3302 14.6114 14.3302C17.038 14.3302 19 13.1427 19 11.697V11.0258C18.1481 12.1101 16.5476 12.7813 14.5856 12.7813ZM13.1658 16.9633C13.1658 17.9443 12.7785 18.8478 12.1073 19.5448C11.4103 20.2418 10.5068 20.6033 9.52581 20.6033C8.54484 20.6033 7.6413 20.216 6.94429 19.5448C6.24728 18.8478 5.88587 17.9443 5.88587 16.9633C5.88587 15.9823 6.2731 15.0788 6.94429 14.3818C7.6413 13.6848 8.54484 13.3234 9.52581 13.3234C10.5068 13.3234 11.4103 13.7106 12.1073 14.3818C12.7785 15.0788 13.1658 15.9823 13.1658 16.9633Z" fill="#AAAAAA"/>
+                                    <path d="M14.5856 10.6902C12.6495 10.6902 11.0231 9.99321 10.197 8.98642V9.65761C10.197 11.1033 12.159 12.2908 14.5856 12.2908C17.0122 12.2908 18.9742 11.1033 18.9742 9.65761V8.98642C18.1481 9.99321 16.5476 10.6902 14.5856 10.6902Z" fill="#AAAAAA"/>
+                                    <path d="M14.5856 8.57337C12.6495 8.57337 11.0231 7.87636 10.197 6.86957V7.54076C10.197 8.98642 12.159 10.1739 14.5856 10.1739C17.0122 10.1739 18.9742 8.98642 18.9742 7.54076V6.86957C18.1481 7.90218 16.5476 8.57337 14.5856 8.57337Z" fill="#AAAAAA"/>
+                                    <path d="M14.5856 6.48234C12.6495 6.48234 11.0231 5.78533 10.197 4.77853V5.44973C10.197 6.89538 12.159 8.08288 14.5856 8.08288C17.0122 8.08288 18.9742 6.89538 18.9742 5.44973V4.77853C18.1481 5.78533 16.5476 6.48234 14.5856 6.48234Z" fill="#AAAAAA"/>
+                                    <path d="M14.5856 0.67392C12.159 0.67392 10.197 1.86142 10.197 3.30707C10.197 4.75272 12.159 5.94022 14.5856 5.94022C17.0122 5.94022 18.9742 4.75272 18.9742 3.30707C18.9742 1.86142 17.0122 0.67392 14.5856 0.67392Z" fill="#AAAAAA"/>
+                                    <path d="M4.4144 12.265C6.84103 12.265 8.80299 11.0775 8.80299 9.63181C8.80299 8.18616 6.84103 6.99866 4.4144 6.99866C1.98777 6.99866 0.0258179 8.18616 0.0258179 9.63181C0.0258179 11.0775 1.98777 12.265 4.4144 12.265Z" fill="#AAAAAA"/>
+                                    <path d="M7 17C7 16.7239 7.22386 16.5 7.5 16.5H11.5C11.7761 16.5 12 16.7239 12 17C12 17.2761 11.7761 17.5 11.5 17.5H7.5C7.22386 17.5 7 17.2761 7 17Z" fill="#AAAAAA"/>
+                                    <path d="M9.5 14.5C9.7646 14.5 9.97909 14.7145 9.97909 14.9791L9.97909 19.0209C9.97909 19.2855 9.7646 19.5 9.5 19.5C9.2354 19.5 9.02091 19.2855 9.02091 19.0209L9.02091 14.9791C9.02091 14.7145 9.2354 14.5 9.5 14.5Z" fill="#AAAAAA"/>
+                                </svg>
+                                <span style="margin-left: 6px;">Đính kèm token</span>
+                            </a>
+                        </div>
+                        <div class="quill-editor-tab-content-container hidden">
+                            <div class="quill-editor-tab-content hidden" data-tab="gifs">
+                                <div class="editor-gifs-search">
+                                    <div class="gifts-search-input">
+                                        <input type="text" placeholder="Enter keywords here to search GIFs..." />
+                                        <i class="fa fa-search"></i>
+                                    </div>
+                                    <button class="gifts-upload"><i class="fa fa-plus"></i> <span>Upload new GIF</span></button>
+                                </div>
+                                <div class="editor-stickers-list"></div>
+                            </div>
+                            <div class="quill-editor-tab-content hidden" data-tab="stickers">
+                                <div class="editor-stickers-search">
+                                    <div class="gifts-stickers-input">
+                                        
+                                    </div>
+                                    <button class="stickers-upload"><i class="fa fa-plus"></i> <span>Upload Sticker</span></button>
+                                </div>
+                                <div class="editor-stickers-list"></div>
+                            </div>
+                        </div>`,
+                body: `<div id="${settings.editor.toolbar}" class="quill-editor-toolbar">
+                            <div class="ql-formats float-left">
+                                <button class="ql-bold"></button>
+                                <button class="ql-italic"></button>
+                                <button class="ql-underline"></button>                                
+                                <button class="ql-blockquote"></button>
+<!--                                <button class="ql-emoji"></button>-->
+                                
+                            </div>
+                            <div class="ql-formats attachment-buttons">
+                                <button class="ql-image"></button>
+                                <button class="ql-link"></button>
+                                <button class="ql-video"></button>
+                            </div>
+                        </div>
+                        <div id="${settings.editor.container}"></div>
+                        <div id="${settings.attachments}" class="attachments-container">
+                            <div id="${settings.attachments}-items" class="attachments-container-items"></div>        
+                        </div>`,
+                footer: `<div class="quill-editor-footer clearfix">
+                            <button class="quill-editor-submit float-right"><span>${buttonSubmitText}</span></button>
+                        </div>`
+            },
+            mobile: {
+                header: `<div class="quill-editor-header ${classTitle}">
+                            <h2>${title}</h2>
+                            <a href="javascript: void(0);" class="quill-editor-destroy">${settings.icons.close}</a>
+                        </div>`,
+                tab: ``,
+                body: `<div id="${settings.editor.toolbar}" class="quill-editor-toolbar">
+                            <div class="ql-formats float-left">
+                                <button class="ql-bold"></button>
+                                <button class="ql-italic"></button>
+                                <button class="ql-underline"></button>                                
+                                <button class="ql-blockquote"></button>
+<!--                                <button class="ql-emoji"></button>-->
+                            </div>
+                            <div class="ql-formats attachment-buttons">
+                                <button class="ql-quick-image"></button>
+                            </div>
+                        </div>
+                        <div id="${settings.editor.container}"></div>
+                        <div id="${settings.attachments}" class="attachments-container">
+                            <div id="${settings.attachments}-items" class="attachments-container-items"></div>
+                        </div>`,
+                footer: `
+                        <input type="file" id="upload-quick-file" style="display: none;"
+                            name="upload_file" accept="image/*">
+                        <div class="quill-editor-footer clearfix">
+                            <div class="editor float-left">
+                                <div class="tabs">
+                                    <a href="javascript: void(0);" class="quill-editor-tab-item give-token-tab editor-tab-item" data-tab="token">
+                                        <svg width="19" height="22" viewBox="0 0 19 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M14.5856 12.7813C12.6495 12.7813 11.0231 12.0842 10.197 11.0774V11.7486C10.197 12.0842 10.3261 12.4198 10.5068 12.7296C10.1712 12.6522 9.8356 12.6005 9.5 12.6005C9.1644 12.6005 8.80299 12.6522 8.46739 12.7296C8.67391 12.4198 8.77717 12.1101 8.77717 11.7486V11.0774C7.95109 12.1101 6.32473 12.7813 4.38859 12.7813C2.45245 12.7813 0.826087 12.0842 0 11.0774V11.7486C0 13.1943 1.96196 14.3818 4.38859 14.3818C5.00815 14.3818 5.6019 14.3044 6.14402 14.1753C5.98913 14.3818 5.83424 14.5883 5.70516 14.8207C5.29212 14.8981 4.85326 14.9239 4.38859 14.9239C2.45245 14.9239 0.826087 14.2269 0 13.2201V13.8397C0 15.2853 1.96196 16.4728 4.38859 16.4728C4.64674 16.4728 4.90489 16.447 5.16304 16.4212C5.13723 16.6019 5.13723 16.7568 5.13723 16.9375C5.13723 16.9375 5.13723 16.9375 5.13723 16.9633C4.90489 16.9891 4.64674 16.9891 4.38859 16.9891C2.45245 16.9891 0.826087 16.2921 0 15.2853V15.9565C0 17.4022 1.96196 18.5897 4.38859 18.5897C4.75 18.5897 5.0856 18.5639 5.39538 18.5122C6.06658 20.1644 7.6413 21.3261 9.52581 21.3261C11.4103 21.3261 12.9851 20.1644 13.6046 18.5122C13.9402 18.5639 14.25 18.5897 14.6114 18.5897C17.038 18.5897 19 17.4022 19 15.9565V15.2853C18.1739 16.3179 16.5476 16.9891 14.6114 16.9891C14.3533 16.9891 14.1209 16.9891 13.8886 16.9633C13.8886 16.9633 13.8886 16.9633 13.8886 16.9375C13.8886 16.7568 13.8886 16.5761 13.8628 16.4212C14.1209 16.447 14.3533 16.4728 14.6114 16.4728C17.038 16.4728 19 15.2853 19 13.8397V13.1685C18.1739 14.2011 16.5476 14.8723 14.6114 14.8723C14.1467 14.8723 13.7337 14.8465 13.3207 14.769C13.1916 14.5367 13.0367 14.3302 12.8818 14.1236C13.4239 14.2527 13.9918 14.3302 14.6114 14.3302C17.038 14.3302 19 13.1427 19 11.697V11.0258C18.1481 12.1101 16.5476 12.7813 14.5856 12.7813ZM13.1658 16.9633C13.1658 17.9443 12.7785 18.8478 12.1073 19.5448C11.4103 20.2418 10.5068 20.6033 9.52581 20.6033C8.54484 20.6033 7.6413 20.216 6.94429 19.5448C6.24728 18.8478 5.88587 17.9443 5.88587 16.9633C5.88587 15.9823 6.2731 15.0788 6.94429 14.3818C7.6413 13.6848 8.54484 13.3234 9.52581 13.3234C10.5068 13.3234 11.4103 13.7106 12.1073 14.3818C12.7785 15.0788 13.1658 15.9823 13.1658 16.9633Z" fill="#AAAAAA"/>
+                                            <path d="M14.5856 10.6902C12.6495 10.6902 11.0231 9.99321 10.197 8.98642V9.65761C10.197 11.1033 12.159 12.2908 14.5856 12.2908C17.0122 12.2908 18.9742 11.1033 18.9742 9.65761V8.98642C18.1481 9.99321 16.5476 10.6902 14.5856 10.6902Z" fill="#AAAAAA"/>
+                                            <path d="M14.5856 8.57337C12.6495 8.57337 11.0231 7.87636 10.197 6.86957V7.54076C10.197 8.98642 12.159 10.1739 14.5856 10.1739C17.0122 10.1739 18.9742 8.98642 18.9742 7.54076V6.86957C18.1481 7.90218 16.5476 8.57337 14.5856 8.57337Z" fill="#AAAAAA"/>
+                                            <path d="M14.5856 6.48234C12.6495 6.48234 11.0231 5.78533 10.197 4.77853V5.44973C10.197 6.89538 12.159 8.08288 14.5856 8.08288C17.0122 8.08288 18.9742 6.89538 18.9742 5.44973V4.77853C18.1481 5.78533 16.5476 6.48234 14.5856 6.48234Z" fill="#AAAAAA"/>
+                                            <path d="M14.5856 0.67392C12.159 0.67392 10.197 1.86142 10.197 3.30707C10.197 4.75272 12.159 5.94022 14.5856 5.94022C17.0122 5.94022 18.9742 4.75272 18.9742 3.30707C18.9742 1.86142 17.0122 0.67392 14.5856 0.67392Z" fill="#AAAAAA"/>
+                                            <path d="M4.4144 12.265C6.84103 12.265 8.80299 11.0775 8.80299 9.63181C8.80299 8.18616 6.84103 6.99866 4.4144 6.99866C1.98777 6.99866 0.0258179 8.18616 0.0258179 9.63181C0.0258179 11.0775 1.98777 12.265 4.4144 12.265Z" fill="#AAAAAA"/>
+                                            <path d="M7 17C7 16.7239 7.22386 16.5 7.5 16.5H11.5C11.7761 16.5 12 16.7239 12 17C12 17.2761 11.7761 17.5 11.5 17.5H7.5C7.22386 17.5 7 17.2761 7 17Z" fill="#AAAAAA"/>
+                                            <path d="M9.5 14.5C9.7646 14.5 9.97909 14.7145 9.97909 14.9791L9.97909 19.0209C9.97909 19.2855 9.7646 19.5 9.5 19.5C9.2354 19.5 9.02091 19.2855 9.02091 19.0209L9.02091 14.9791C9.02091 14.7145 9.2354 14.5 9.5 14.5Z" fill="#AAAAAA"/>
+                                        </svg>
+                                        <span style="margin-left: 6px;">Đính kèm token</span>
+                                    </a>
+                                </div>
+                            </div>
+                            <button class="quill-editor-submit float-right"><span>${buttonSubmitText}</span></button>
+                        </div>`
+            }
+        };
+
+        const header = settings.mobile == false ? template.desktop.header : template.mobile.header;
+        const tab = settings.mobile == false ? template.desktop.tab : template.mobile.tab;
+        const footer = settings.mobile == false ? template.desktop.footer : template.mobile.footer;
+        const body = settings.mobile == false ? template.desktop.body : template.mobile.body;
+
+        let getMentionUsers = function() {
+            if (typeof(current_user) !== 'undefined' && current_user) {
+                $.ajax({
+                    type: 'GET',
+                    url: urls.mention,
+                    crossDomain: true,
+                    xhrFields: {withCredentials: true},
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-OSC-Cross-Request': 'OK'
+                    },
+                    data: {
+                        //param: 'user_comment_mention',
+                        id: settings.link_id,
+                        type: settings.type,
+                        username: current_user,
+                        format: 'json'
+                    },
+                    dataType: 'json',
+                    beforeSend: function() {
+                        window.LINKHAY_MENTION_USERS['users-friend'] = [];
+                        window.LINKHAY_MENTION_USERS['users-comment-' + settings.link_id] = [];
+                    },
+                    success: function(response) {
+                        let status = typeof(response.status) !== 'undefined' ? response.status : 0;
+                        if (status === 1) {
+                            window.LINKHAY_MENTION_USERS['users-friend'] = response.data;
+                            window.LINKHAY_MENTION_USERS['users-comment-' + settings.link_id] = response.data_users_comment;
+                        }
+                    }
+                });
+            }
+        };
+
+        let create = function() {
+            var icons = Quill.import('ui/icons');
+            icons['bold'] = settings.icons.toolbars.bold;
+            icons['italic'] = settings.icons.toolbars.italic;
+            icons['underline'] = settings.icons.toolbars.underline;
+            icons['blockquote'] = settings.icons.toolbars.blockquote;
+            icons['emoji'] = settings.icons.toolbars.emoji;
+            icons['image'] = settings.icons.toolbars.image;
+            icons['link'] = settings.icons.toolbars.link;
+            icons['video'] = settings.icons.toolbars.embed;
+            icons['gif'] = settings.icons.toolbars.image;
+            icons['quick-image'] = settings.icons.toolbars.image;
+
+            var bindings = {
+                backToQuoteComment: {
+                    key: 'backspace',
+                    handler: function(range, context) {
+                        if (range.length > 0) {
+                            return true;
+                        }
+                        var blot = quill.getLeaf(range.index - 1)[0];
+                        if (blot.domNode.nodeName === "COMMENT-QUOTE") {
+                            quill.deleteText(range.index - 1, 1);
+
+                            var range = document.createRange();
+                            var selection = window.getSelection();
+                            var node = blot.position(range.index - 1)[0];
+
+                            var selectNode = node.querySelector(".quote-comment-content");
+                            if (selectNode.childNodes.length) {
+                                selectNode = selectNode.firstChild;
+                            }
+
+                            range.setStart(selectNode, selectNode.length);
+                            range.setEnd(selectNode, selectNode.length);
+
+                            selection.removeAllRanges();
+
+                            selection.addRange(range);
+
+                            return false;
+                        }
+
+                        return true;
+                    }
+                }
+            };
+
+            var setFormat = function(command) {
+                if (instance.checkQuoteComment() == false) {
+                    let range = quill.getSelection();
+                    let format = quill.getFormat(range.index, range.length);
+                    let setFormat = typeof(format[command]) !== 'undefined' ? !format[command] : true;
+                    quill.formatText(range.index, range.length, command, setFormat);
+                }
+            };
+
+            // try {
+            quill = new Quill('#' + settings.editor.container, {
+                modules: {
+                    //'toolbar': toolbarOptions,
+                    //'emoji-toolbar': true,
+                    //'emoji-shortname': false,
+                    autoLinks: {
+                        parse: true,
+                        type: true,
+                        regexp: /https?:\/\/[^\s]+/
+                    },
+                    // autoMention: {
+                    //     parse: true,
+                    //     type: true,
+                    //     regexp: /\@[A-Za-z0-9]{3,}/ig
+                    // },
+                    formula: true,
+                    // syntax: true,
+                    //'smart-breaker': true,
+                    keyboard: {
+                        bindings: bindings
+                    },
+                    toolbar: {
+                        container: '#' + settings.editor.toolbar,
+                        handlers: {
+                            'bold': function(a) {
+                                setFormat('bold');
+                            },
+                            'italic': function(a) {
+                                setFormat('italic');
+                            },
+                            'underline': function(a) {
+                                setFormat('underline');
+                            },
+                            'blockquote': function() {
+                                if (instance.checkQuoteComment() == true) {
+                                    return false;
+                                }
+
+                                var removeBlockquote = function(range) {
+                                    let [line, lineOffset] = quill.getLine(range.index, range.length);
+                                    let lines = quill.getLines(range.index, range.length);
+                                    if (lines.length == 0) {
+                                        quill.formatText(range.index, line.cache.length, { blockquote: null });
+                                    } else {
+                                        for (let i in lines) {
+                                            if (typeof (lines[i]) !== 'object') {
+                                                continue;
+                                            }
+                                            let index = quill.getIndex(lines[i]);
+                                            quill.formatText(index, lines[i].cache.length, {blockquote: null});
+                                        }
+                                    }
+                                };
+
+                                var formatBlockquote = function(index, length) {
+                                    quill.formatText(index, length, {blockquote: true});
+                                };
+                                let range = quill.getSelection();
+                                if (range) {
+                                    let format = quill.getFormat(range.index, range.length);
+                                    if (format && typeof (format.blockquote) !== 'undefined' && format.blockquote == true) {
+                                        removeBlockquote(range);
+                                        return false;
+                                    }
+
+                                    if (range.length == 0) {
+                                        let [line, lineOffset] = quill.getLine(range.index);
+                                        if (range.index == line.domNode.innerText.length || lineOffset == line.domNode.innerText.length) {
+                                            quill.insertText(range.index, '\n', 'user');
+                                            formatBlockquote(range.index + 1, line.domNode.innerText.length);
+                                            quill.setSelection(range.index + 1, 0, 'user');
+                                        } else {
+                                            formatBlockquote(range.index, line.domNode.innerText.length + 1);
+                                            quill.setSelection(range.index, 0, 'user');
+                                        }
+                                    } else {
+                                        removeBlockquote(range);
+                                        let index = range.index;
+                                        if (index > 0) {
+                                            quill.insertText(index, '\n', 'user');
+                                            index++;
+                                        }
+                                        let lines = quill.getLines(index, range.length);
+                                        let text = quill.getText(index, range.length);
+                                        let length = 0;
+                                        if (lines.length == 1) {
+                                            if (range.length < lines[0].domNode.innerText.length) {
+                                                quill.insertText(range.index + range.length + 1, '\n', 'user');
+                                            }
+                                            formatBlockquote(range.index + 1, range.length + 1);
+                                        } else {
+                                            for (let i in lines) {
+                                                if (typeof (lines[i]) !== 'object') {
+                                                    continue;
+                                                }
+                                                if (typeof (lines[i].cache.length) !== 'undefined') {
+                                                    length += lines[i].cache.length;
+                                                } else {
+                                                    length += lines[i].domNode.innerText.length;
+                                                }
+                                            }
+                                            formatBlockquote(index, length);
+                                        }
+
+                                        quill.setSelection(range.index + 1, range.length, 'user');
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    mention: {
+                        minChars: 3,
+                        allowedChars: /^[A-Za-z0-9_]+$/,
+                        mentionDenotationChars: ["@"],
+                        positioningStrategy: "normal", // fixed
+                        renderItem: (data, searchTerm) => {
+                            if (data.disabled) {
+                                return `<div style="height:10px;line-height:10px;font-size:10px;background-color:#ccc;margin:0 -20px;padding:4px">${data.name}</div>`;
+                            }
+                            return `<img class="avatar" src="${data.avatar}" /> <span>${data.name}</span>`;
+                        },
+                        renderLoading: () => {
+                            return 'Đang tải dữ liệu...';
+                        },
+                        source: function (searchTerm, renderList, mentionChar) {
+                            let values = [];
+                            if (mentionChar === "@") {
+                                values = typeof(window.LINKHAY_MENTION_USERS['users-friend']) !== 'undefined'
+                                    ? window.LINKHAY_MENTION_USERS['users-friend'] : values;
+                            }
+                            if (searchTerm.length >= 1) {
+                                const limit = 10;
+                                const matches = [];
+                                for (let i = 0; i < values.length; i++) {
+                                    if (
+                                        ~values[i].name
+                                            .toLowerCase()
+                                            .indexOf(searchTerm.toLowerCase())
+                                    ) {
+                                        matches.push(values[i]);
+                                    }
+                                    if (matches.length == limit) {
+                                        break;
+                                    }
+                                }
+                                renderList(matches, searchTerm);
+                            }
+                        }
+                    }
+                },
+                placeholder: settings.placeholder,
+                formats : [
+                    "bold",
+                    "italic",
+                    "link",
+                    "underline",
+                    "blockquote",
+                    "image",
+                    "video",
+                    "commentQuote",
+                    "commentGif",
+                    "sticker",
+                    "mention",
+                    'break',
+                    //"code-block",
+                    //"background",
+                    //"color",
+                    //"font",
+                    //"code",
+                    //"size",
+                    //"strike",
+                    //"script",
+                    // "header",
+                    //"indent",
+                    // "list", <-- commented-out to suppress auto bullets
+                    //"align",
+                    //"direction",
+                    //"formula",
+                ],
+                theme: 'snow'
+            });
+
+            quill.keyboard.bindings[66].unshift({
+                key: 'B', // 66
+                shortKey: true,
+                handler: function(range, context) {
+                    console.info('ctrl + b')
+                    // Handle ctrl + b
+                    setFormat('bold');
+                }
+            });
+            quill.keyboard.bindings[73].unshift({
+                key: 'I', // 73
+                shortKey: true,
+                handler: function(range, context) {
+                    console.info('ctrl + i')
+                    // Handle ctrl + i
+                    setFormat('italic');
+                }
+            });
+            quill.keyboard.bindings[85].unshift({
+                key: 'U', // 85
+                shortKey: true,
+                handler: function(range, context) {
+                    console.info('ctrl + u')
+                    // Handle ctrl + u
+                    setFormat('underline');
+                }
+            });
+
+            quill.clipboard.addMatcher (Node.ELEMENT_NODE, function (node, delta) {
+                let ops = []
+                delta.ops.forEach(op => {
+                    if (op.insert && typeof op.insert === 'string') {
+                        let regex = /https?:\/\/[^\s]+/;
+                        if (regex.exec(op.insert) != null) {
+                            ops.push({
+                                insert: op.insert, attributes: { link: op.insert }
+                            })
+                        } else {
+                            ops.push({
+                                insert: op.insert
+                            })
+                        }
+                    }
+                })
+                delta.ops = ops
+                return delta
+            });
+
+            const toolbar = quill.getModule('toolbar');
+            toolbar.addHandler('image', function() {
+                // check content include quote comment
+                if (instance.checkQuoteComment() == false) {
+                    pluginPopupModal.showImage();
+                }
+            });
+            toolbar.addHandler('link', function() {
+                // check content include quote comment
+                if (instance.checkQuoteComment() == false) {
+                    pluginPopupModal.showLink();
+                }
+            });
+            toolbar.addHandler('video', function() {
+                // check content include quote comment
+                if (instance.checkQuoteComment() == false) {
+                    pluginPopupModal.showEmbed();
+                }
+            });
+            element.removeClass(settings.className.hidden);
+
+            if (settings.content.data) {
+                quill.setContents(settings.content.data, Quill.sources.API);
+            }
+        };
+
+        let setup = {
+            actions: function() {
+                $('.send-new-comment').live('click', function() {
+                    instance.destroy(true);
+                });
+
+                $('.quill-editor-tab-item').live('click', function(e) {
+                    let self = $(this),
+                        type = self.data('tab'),
+                        offset;
+                    $('.quill-editor-tab-item[data-tab="gifs"], .quill-editor-tab-item[data-tab="stickers"]').removeClass('active');
+                    self.addClass('active');
+                    switch (type) {
+                        case 'text':
+                            // hide tab content
+                            // $('.quill-editor-tab-content-container', element).addClass('hidden');
+                            // // show editor
+                            // $('#' + settings.editor.toolbar).removeClass('hidden');
+                            // $('#' + settings.editor.container).removeClass('hidden');
+                            break;
+                        case 'gifs':
+                            offset = $(element).find(".quill-editor-tab-item[data-tab='gifs']").offset();
+                            pluginStickerGifDialog.showGif(offset);
+                            break;
+                        case 'stickers':
+                            offset = $(element).find(".quill-editor-tab-item[data-tab='stickers']").offset();
+                            pluginStickerGifDialog.showSticker(offset);
+                            break;
+                        case 'token':
+                            if (tokenAttachment !== null) {
+                                alert('Bạn đã đính kèm token cho bình luận này rồi!');
+                                return false;
+                            }
+
+                            let form = $('.V2-comment-frm:first');
+                            let replyComment = linkhayEditors['editor-main'].getReplyComment();
+                            let comment = replyComment > 0 ? $('.V2-comment-item[data-comment-id="' + replyComment + '"]').parent() : [];
+                            let defaultUser = {
+                                id: null,
+                                name: null,
+                                avatar: null
+                            };
+                            let defaultAuthor = {
+                                id: null,
+                                name: null,
+                                avatar: null
+                            };
+
+                            let linkInfo = null;
+                            if (form.data('mobile') == true) {
+                                let linkDetailContainer = $(form).parents('.content');
+                                linkInfo = $('.author', linkDetailContainer);
+                                defaultUser.name = linkInfo.find('.name-author-linkview').text().trim();
+                                defaultUser.avatar = linkInfo.find('.name-author-linkview img').attr('src');
+
+                                defaultAuthor.name = defaultUser.name;
+                                defaultAuthor.avatar = defaultUser.avatar;
+                            } else {
+                                linkInfo = $('.link-summary .link-info .info .user-link');
+                                defaultUser = {
+                                    name: linkInfo.find('span').text().trim(),
+                                    id: null,
+                                    avatar: linkInfo.find('img:first').attr('src')
+                                };
+                                defaultAuthor.name = defaultUser.name;
+                                defaultAuthor.avatar = defaultUser.avatar;
+                            }
+
+                            if (settings.reply == false) {
+
+                            } else if (comment.length > 0) {
+                                if (comment.data('username') == current_user) {
+
+                                } else {
+                                    defaultUser = tokenDefaultUser != null ? tokenDefaultUser : {
+                                        name: comment.data('username'),
+                                        id: comment.data('user-id'),
+                                        avatar: comment.find('.feed-photo > img:first').attr('src')
+                                    };
+                                }
+                            }
+
+                            if (defaultUser.name == current_user) {
+                                defaultUser = defaultAuthor;
+                            }
+
+                            pluginTokenGiveModal.showModal({
+                                'listUser': [],
+                                'defaultUser': defaultUser,
+                                'tokenBalance': $('.user-token-available').text().trim().replace(/[^0-9]/ig, '')
+                            });
+                            break;
+                    }
+                });
+
+                quill.on('text-change', editorTextChange);
+
+                quill.off('selection-change').on('selection-change', editorSelectionChange);
+                // destroy editor
+                $('.quill-editor-destroy', element).click(function() {
+                    instance.destroy();
+                });
+
+                // submit comment
+                $('.quill-editor-submit').live('click', function() {
+                    var self = $(this);
+
+                    // trim space after content
+                    const delta = quill.getContents();
+                    let leadingFixed = false;
+                    let newDelta = [];
+                    let tempDelta = [];
+
+                    if (delta.ops.length === 1) {
+                        // If there is only one entry, check if it's a string and trim leading and ending LF
+                        let { insert, attributes } = delta.ops[0];
+                        if(typeof(insert) === 'string') {
+                            insert = insert.replace(/^\n+|\n+$/g, '');
+                        }
+                        newDelta = [{ insert, attributes }];
+                    } else {
+                        // Else go through all the insert entries
+                        delta.ops.forEach(({ insert, attributes }, idx) => {
+                            // Create a boolean to indicate if we're at the last entry
+                            const isLast = idx === delta.ops.length - 1;
+
+                            // If the entry is a string (not image/asset)
+                            if(typeof(insert) === 'string') {
+                                // If we haven't fixed the leading
+                                if(!leadingFixed) {
+                                    // If the entry begins with LFs
+                                    if(/^\n+/.test(insert)) {
+                                        // Create a string witrh clean leading LFs
+                                        let cleanText = (null == attributes || typeof(attributes.blockquote) == 'undefined' || attributes.blockquote == false) ? insert.replace(/^\n+/, '') : insert;
+
+                                        // If there is text after cleaning the LFs
+                                        if(cleanText.length > 0) {
+                                            // Add the text to the newDelta
+                                            newDelta.push({
+                                                insert,
+                                                attributes
+                                            });
+                                            // Set leading flag to indicate we've fixed the leading
+                                            leadingFixed = true;
+                                        }
+                                        // Else if the entry does not start with LFs
+                                    } else {
+                                        // If the entry does not begin with LFs
+                                        // Add any pending entries that may exists in tempDelta to the newDelta
+                                        newDelta = newDelta.concat(tempDelta);
+                                        // Add the existing entry
+                                        newDelta.push({
+                                            insert,
+                                            attributes
+                                        });
+                                        // Clean the any pending entries
+                                        tempDelta = [];
+                                        // And set the leading flag to indicate we've fixed the leading
+                                        leadingFixed = true;
+                                    }
+                                    // Else if we have fixed the leading
+                                } else {
+                                    // If there an entry with ending LFs
+                                    if(/\n+$/.test(insert)) {
+                                        // Create a string witrh clean ending LFs
+                                        let cleanText = (null == attributes || typeof(attributes.blockquote) == 'undefined' || attributes.blockquote == false) ? insert.replace(/\n+$/, '') : insert;
+
+                                        // If this is the last entry
+                                        if(isLast) {
+                                            // If there is text after cleaning the LFs
+                                            if(cleanText.length > 0) {
+                                                // Add any pending entries that may exists in tempDelta to the newDelta
+                                                newDelta = newDelta.concat(tempDelta);
+                                                // Add the cleaned entry
+                                                newDelta.push({
+                                                    insert: cleanText,
+                                                    attributes
+                                                });
+                                            }
+                                            // Else if this is not the last entry
+                                        } else {
+                                            // If there is text after cleaning the LFs
+                                            if(cleanText.length > 0) {
+                                                // Add any pending entries that may exists in tempDelta to the newDelta
+                                                newDelta = newDelta.concat(tempDelta);
+                                                // Add the existing entry
+                                                newDelta.push({
+                                                    insert,
+                                                    attributes
+                                                });
+                                                // Clean the any pending entries
+                                                tempDelta = [];
+                                                // Else if there is no text after cleaning the LFs
+                                            } else {
+                                                // Add the entry to the temp deltas so to use them later if its needed
+                                                tempDelta.push({ insert, attributes });
+                                            }
+                                        }
+                                        // Else if the entry does not end with LFs
+                                    } else {
+                                        // Add any pending entries that may exists in tempDelta to the newDelta
+                                        newDelta = newDelta.concat(tempDelta);
+                                        // Add the existing entry
+                                        newDelta.push({
+                                            insert,
+                                            attributes
+                                        });
+                                        // Clean the any pending entries
+                                        tempDelta = [];
+                                    }
+                                }
+                                // If the entry is not a string
+                            } else {
+                                // Then all leading text/line feeds have been cleared if there were any
+                                // so, it's safe to set the leading flag
+                                leadingFixed = true;
+                                // Add any pending entries that may exists in tempDelta to the newDelta
+                                newDelta = newDelta.concat(tempDelta);
+                                // Add the existing entry
+                                newDelta.push({
+                                    insert,
+                                    attributes
+                                })
+                                // Clean the any pending entries
+                                tempDelta = [];
+                            }
+                        });
+                    }
+                    // set new content
+                    quill.setContents(newDelta);
+                    //console.log(newDelta);
+                    // end trim space after content
+
+                    let json = quill.getContents();
+                    resetEmbed();
+
+                    let commentData = {
+                        link_id: settings.link_id,
+                        parent_id: settings.parent_id,
+                        data: {
+                            ops: json.ops,
+                            attachments: attachments
+                        }
+                    };
+
+                    if (tokenAttachment) {
+                        commentData.data.token_attachment = tokenAttachment;
+                        commentData.verify = $('#g-recaptcha-response').val();
+                    }
+
+                    commentData.challenge_type = 'comment';
+                    let captchaInput = $('.captcha-input', $('#linkhay-popup-container .captcha-container'));
+                    if (captchaInput.length) {
+                        commentData.restrict_verify_code = captchaInput.val();
+                    }
+
+                    //return;
+                    $.ajax({
+                        type: 'POST',
+                        xhrFields: {withCredentials: true},
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-OSC-Cross-Request': 'OK'
+                        },
+                        url: (settings.edit == true && settings.comment_id > 0) ? urls.edit + '/id/' + settings.comment_id : urls.submit,
+                        data: commentData,
+                        //data: JSON.stringify({json: json, html: html}),
+                        dataType: 'json',
+                        beforeSend: function() {
+                            self.attr('disabled', true);
+                            quill.enable(false);
+                        },
+                        //contentType: 'application/json',
+                        success: function (response, status, xhr) {// success callback function
+                            self.removeAttr('disabled');
+                            settings.parent_comment_id = 0;
+                            if (response.status == 4) {
+                                let restrictAccess = $('body').linkhayRestrictAccess({
+                                    restrictType: response.restrict_type,
+                                    challengeType: 'comment'
+                                });
+                                restrictAccess.show(response, function() {
+                                    $('.quill-editor-submit').click();
+                                });
+                            } else {
+                                if (response.result == 'OK') {
+                                    const commentId = response.data.id;
+                                    const html = response.data.html;
+
+                                    if (settings.edit == true) {
+                                        let li = $(self).parents('li:first');
+                                        quill.setContents('');
+                                        instance.destroy();
+                                        li.html(html);
+                                    } else if (settings.reply == true) {
+                                        let container = $(instance).parents('li:first');
+                                        if (container.length > 0) {
+                                            container.before('<li>' + html + '</li>');
+                                        }
+
+                                        instance.destroy();
+                                        quill.setContents('');
+                                        attachments = [];
+                                        tokenAttachment = null;
+                                        $('#' + settings.attachments + '-items').html('');
+                                        $('#' + settings.attachments + ' .give-token-embed').remove();
+                                    } else {
+                                        let container = $('.V2-comments[link-id="' + settings.link_id + '"] > ul:last');
+                                        if (container.length > 0) {
+                                            container.append('<li>' + html + '</li>');
+                                            $('li.no-comment').remove();
+                                        }
+
+                                        quill.setContents('');
+                                        attachments = [];
+                                        tokenAttachment = null;
+                                        $('#' + settings.attachments + '-items').html('');
+                                        $('#' + settings.attachments + ' .give-token-embed').remove();
+                                    }
+
+                                    if (settings.edit == false) {
+                                        try {
+                                            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.toggleMessageHandler) {
+                                                window.webkit.messageHandlers.toggleMessageHandler.postMessage({
+                                                    'action': 'commentLink',
+                                                    'count': response.data.total_comments,
+                                                    'link_id': settings.link_id
+                                                });
+                                            }
+                                            if (typeof JSBridge !== 'undefined') {
+                                                JSBridge.showMessageInNative(JSON.stringify({
+                                                    'action': 'commentLink',
+                                                    'count': response.data.total_comments,
+                                                    'link_id': settings.link_id
+                                                }));
+                                            }
+                                        } catch (e) {
+                                            console.log('e:', e);
+                                        }
+                                        ;
+
+                                        $('#burn-token-display').html('0');
+                                        $('#number-give-token').change();
+                                        pluginTokenGiveModal.setToken(0);
+                                        pluginTokenGiveModal.giveTokenChanged();
+                                        pluginTokenGiveModal.validateForm();
+                                    }
+
+                                    // reset token available
+                                    if (typeof (response.data.token_available) !== 'undefined') {
+                                        // pc
+                                        $('.badget.user-token-available').html(response.data.token_available + ' token');
+                                        // mobile
+                                        $('.hidden.user-token-available').html(response.data.token_available);
+                                    }
+
+                                    // reset captcha
+                                    if (typeof window.grecaptcha !== 'undefined') {
+                                        try {
+                                            window.grecaptcha.reset();
+                                        } catch (e) {}
+                                    }
+
+                                    instance.formatDate();
+                                } else {
+                                    alert(response.message);
+                                    if (typeof window.grecaptcha !== 'undefined') {
+                                        try {
+                                            window.grecaptcha.reset();
+                                        } catch (e) {}
+                                    }
+                                    quill.focus();
+                                }
+                            }
+                            quill.enable(true);
+                        }
+                    });
+                });
+
+                $('.ql-quick-image', element).click(function() {
+                    element.find('#upload-quick-file').click();
+                });
+
+                $('#upload-quick-file', element).change(function() {
+                    var files = element.find("#upload-quick-file").get(0).files,
+                        totalFile = files.length;
+                    if (totalFile > 0) {
+                        //
+                        let formData = new FormData();
+                        formData.append('link_id', instance.getLinkId());
+                        formData.append('type', 'image');
+                        formData.append('file', files[0]);
+                        formData.append('data', 'UploadImage');
+                        $.ajaxq('comment-upload-image', {
+                            type: "POST",
+                            data: formData,
+                            contentType: false,
+                            processData: false,
+                            crossDomain: true,
+                            xhrFields: {withCredentials: true},
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-OSC-Cross-Request': 'OK'
+                            },
+                            url: urls.upload.image,
+                            success: function (response) {
+                                if (response.result !== 'OK') {
+                                    console.log('Upload error: ' + response.message);
+                                } else {
+                                    instance.insertQuickImage(response.data.url, response.data.hash);
+                                }
+                            }
+                        });
+                    }
+                });
+            },
+            removeActions: function() {
+                quill.off('text-change', editorTextChange);
+                quill.off('selection-change', editorSelectionChange);
+            },
+            attachmentActions: function() {
+                //update link status to ready(was pending)
+                $('.attachment-insert-button', element).click(function() {
+                    let attachmentContainer = $(this).closest('.link-list');
+                    if (attachmentContainer.length > 0) {
+                        if (settings.mobile == true) {
+
+                        } else {
+                            attachmentContainer.find('.attachment-link-header').addClass('hidden');
+                            attachmentContainer.find('.attachment-link-header-success').removeClass('hidden');
+                            attachmentContainer.find('.attachment-link-layout').addClass('success');
+                        }
+                        if (attachmentContainer.find('.attachment-link-tab.video').hasClass('active')) {
+                            var width = attachmentContainer.attr('data-width');
+                            attachmentContainer.width(width);
+                            attachmentContainer.addClass('tab-3');
+                        }
+                        //sync attachments variable
+                        let id = attachmentContainer.attr('id');
+                        // instance.updateAttachmentStatus(id, 0);
+                        instance.updateAttachmentField(id, 'is_pending', 0);
+                        attachmentContainer.hide().fadeIn();
+                    }
+                });
+
+                //update link status to pending
+                $('.attachment-reconfig-button[data-source="user"]', element).click(function() {
+                    let attachmentContainer = $(this).closest('.link-list');
+                    if (attachmentContainer.length > 0) {
+                        attachmentContainer.find('.attachment-link-header').removeClass('hidden');
+                        attachmentContainer.find('.attachment-link-header-success').addClass('hidden');
+                        attachmentContainer.find('.attachment-link-layout').removeClass('success');
+                        attachmentContainer.removeAttr('style').removeClass('tab-3');
+
+                        //sync attachments variable
+                        let attachmentId = attachmentContainer.attr('id');
+                        instance.updateAttachmentField(attachmentId, 'is_pending', 1);
+
+                    }
+                });
+
+                $('.attachment-reconfig-button[data-source="api"]', element).click(function() {
+                    let attachmentContainer = $(this).closest('.link-list');
+                    if (attachmentContainer.length > 0) {
+                        attachmentId = attachmentContainer.attr('id');
+                        instance.updateAttachmentField(attachmentId, 'is_pending', 1);
+                        pluginPopupModal.editLink(instance, attachmentId);
+                    }
+                });
+
+                //delete link attachment
+                $('.attachment-link-remove', element).click(function() {
+                    let attachmentContainer = $(this).closest('.link-list');
+                    if (attachmentContainer.length > 0) {
+                        attachmentContainer.remove();
+                        //sync attachments variable
+                        let id = attachmentContainer.attr('id');
+                        instance.deleteAttachmentbyId(id);
+                    }
+                });
+
+                //delete embed attachment
+                $('.attachment-embed-delete', element).click(function() {
+                    let attachmentContainer = $(this).closest('.embed-list');
+                    resetEmbed();
+
+                    if (attachmentContainer.length > 0) {
+                        attachmentContainer.remove();
+                        //sync attachments variable
+                        let id = attachmentContainer.attr('id');
+                        instance.deleteAttachmentbyId(id);
+                    }
+                });
+
+                //setup embed attachment
+                $('.attachment-embed-option', element).click(function() {
+                    let attachmentContainer = $(this).closest('.embed-list');
+                    if (attachmentContainer.length > 0) {
+                        let attachmentId = attachmentContainer.attr('id');
+                        pluginPopupModal.editEmbed(instance, attachmentId);
+
+                    }
+                });
+
+                //delete image attachment
+                $('.delete-attach-img', element).click(function() {
+                    let attachmentContainer = $(this).closest('.image-list');
+                    if (attachmentContainer.length > 0) {
+                        attachmentContainer.remove();
+                        //sync attachments variable
+                        let id = attachmentContainer.attr('id');
+                        instance.deleteAttachmentbyId(id);
+                    }
+                });
+
+                $('.attachment-link-tab', element).click(function () {
+                    let attachmentContainer = $(this).closest('.link-list');
+                    if (attachmentContainer.length > 0) {
+                        let tab = $(this).data('tab');
+                        let id = attachmentContainer.attr('id');
+
+                        switch (tab) {
+                            case "tab-1":
+                                instance.updateAttachmentField(id, 'style', 1);
+                                break;
+                            case "tab-2":
+                                instance.updateAttachmentField(id, 'style', 2);
+                                break;
+                            case "tab-3":
+                                instance.updateAttachmentField(id, 'style', 3);
+                                break;
+                        }
+
+                        attachmentContainer.find('.attachment-link-tab').removeClass('active');
+                        $(this).addClass('active');
+
+                        attachmentContainer.find('.attachment-link-content').removeClass('active');
+                        attachmentContainer.find('.attachment-link-content.' + tab).addClass('active');
+                    }
+
+                });
+
+                $('.link-list', element).on('swiped-left', swipeTab);
+
+                $('.link-list', element).on('swiped-right', swipeTab);
+
+            },
+            attachmentDisableActions: function() {
+                //insert link(is pending)
+                $('.attachment-insert-button', element).off('click');
+                $('.attachment-reconfig-button', element).off('click');
+                $('.attachment-link-remove', element).off('click');
+                $('.attachment-embed-delete', element).off('click');
+                $('.attachment-embed-option', element).off('click');
+                $('.delete-attach-img', element).off('click');
+                $('.attachment-link-tab', element).off('click');
+                $('.link-list', element).off('swiped-left', swipeTab);
+                $('.link-list', element).off('swiped-right', swipeTab);
+            },
+            renderAttachments: function() {
+                if (typeof(settings.content.attachments) !== 'undefined') {
+                    for (let i = 0; i < settings.content.attachments.length; i++) {
+                        if (typeof(settings.content.attachments[i].type) !== 'undefined') {
+                            switch (settings.content.attachments[i].type) {
+                                case 'image':
+                                    pluginPopupModal.syncImage(settings.content.attachments[i]);
+                                    break;
+                                case 'link':
+                                    pluginPopupModal.syncLink(settings.content.attachments[i]);
+                                    break;
+                                case 'embed':
+                                    pluginPopupModal.syncEmbed(settings.content.attachments[i]);
+                                    break;
+                            }
+                        }
+                    }
+                }
+            },
+            stickerGifActions: function() {
+                $('.gif-sticker-wrapper', element).click(function() {
+                    $(this).remove();
+                });
+            },
+            stickerGifDisableActions: function() {
+                $('.gif-sticker-wrapper', element).off('click');
+            },
+        };
+
+        let initPluginPopupModal = function() {
+            pluginPopupModal = $('body').linkHayAttachmentPopup({
+                mobile: settings.mobile,
+                editor: instance,
+                attachmentId: settings.attachments
+            });
+        };
+
+        let initPluginStickerGifModal = function() {
+            pluginStickerGifDialog = $('body').linkHayStickerGifPopup({
+                editor: instance,
+                editorId: settings.editor.container
+            });
+        };
+
+        let initPluginTooltip = function() {
+            pluginTooltip = $('body').LinkhayLinkTooltip({
+                editor: instance,
+                editorId: settings.editor.container,
+                attachmentId: settings.attachments
+            });
+        };
+
+        let initPluginTokenGiveModal = function() {
+            try {
+                pluginTokenGiveModal = $('body').linkHayGiveTokenPopup({
+                    editor: instance,
+                    attachmentId: settings.attachments
+                });
+            } catch (e) {
+
+            }
+        };
+
+        this.initialize = function() {
+            // append html
+            element.html(header + tab + body + footer);
+            // init plugin popup modal
+
+            initPluginPopupModal();
+
+            //init plugin token give modal
+            initPluginTokenGiveModal();
+
+            if (settings.mobile == false) {
+                // init plugin sticker-gif
+                initPluginStickerGifModal();
+            }
+
+            getMentionUsers();
+
+            // create editor
+            create();
+
+            pluginTokenGiveModal.setEditor(instance);
+
+            pluginPopupModal.setEditor(instance);
+            if (settings.mobile == false) {
+                pluginStickerGifDialog.setEditor(instance);
+            }
+
+            // setup actions
+            setup.actions();
+
+            instance.formatDate();
+
+            if (settings.content.attachments) {
+                for (let i=0; i < settings.content.attachments.length; i++) {
+                    instance.insertAttachments(settings.content.attachments[i]);
+                }
+                setup.renderAttachments();
+                setup.attachmentDisableActions();
+                setup.attachmentActions();
+            }
+            return this;
+        };
+
+        this.getEditor = function () {
+            return quill;
+        };
+
+        this.reply = function(data) {
+
+        };
+
+        this.checkQuoteComment = function() {
+            let range = quill.getSelection();
+            if (range.length > 0) {
+                //console.log('User cursor is at index', range.index);
+            }
+
+            let hasIgnoreElement = false;
+            let selectedContent = quill.getContents(range.index, range.length);
+            if (range.length == 0) {
+                let line = quill.getLine(range.index);
+                if (typeof (line[0]) === 'object') {
+                    let children = line[0].children;
+                    if (children.head.domNode.nodeName === 'COMMENT-QUOTE') {
+                        hasIgnoreElement = true;
+                    }
+                }
+            } else {
+                for (let i = 0; i < selectedContent.ops.length; i++) {
+                    if (typeof (selectedContent.ops[i].insert !== 'undefined') && typeof (selectedContent.ops[i].insert.commentQuote) !== 'undefined') {
+                        hasIgnoreElement = true;
+                    }
+                }
+            }
+            return hasIgnoreElement;
+        };
+
+        this.getEditorSelection = function () {
+            return editorSelection;
+        }
+
+        this.setEditorSelection = function (selection) {
+            editorSelection = selection;
+        }
+
+        var swipeTab = function(e) {
+            let attachmentContainer = $(e.currentTarget);
+            let id = attachmentContainer.attr('id');
+            var tabNumber = attachmentContainer.find('.attachment-link-content').length;
+            var listTab = tabNumber === 2 ? ['tab-1', 'tab-2'] : tabNumber === 3 ? ['tab-1', 'tab-2', 'tab-3'] : [];
+            var next = (e.type === 'swiped-left') ? 1 : (e.type === 'swiped-right' ? -1 : 0);
+            if (attachmentContainer.length > 0) {
+                var activeTab = attachmentContainer.find('.attachment-link-content.active');
+                var selectTab = listTab.filter(tab => activeTab.hasClass(tab))[0];
+                var nextTab = listTab[listTab.indexOf(selectTab) + next];
+                if (nextTab) {
+                    attachmentContainer.find('.attachment-link-content').removeClass('active');
+                    attachmentContainer.find('.attachment-link-content.' + nextTab).addClass('active');
+                    attachmentContainer.find('.footer .tab').removeClass('active');
+                    attachmentContainer.find('.footer .tab.' + nextTab).addClass('active');
+                    instance.updateAttachmentField(id, 'style', nextTab.slice(4));
+                }
+            }
+        }
+
+        var editorTextChange = function(delta, oldDelta, source) {
+            let linkId = settings.link_id;
+            let contents = delta.ops,
+                url = '';
+
+            contents.forEach(element => {
+                url = element.attributes ? element.attributes.link : url;
+            });
+
+            //get status format link by tooltip
+            if (null == pluginTooltip) {
+                initPluginTooltip();
+            }
+            let isFormatLink = pluginTooltip.getStatusChangeUrl()[settings.editor.container];
+
+            if (source === Quill.sources.USER) {
+                //insert link attachment when parse link to editor
+                if (url && url.length > 0 && url.indexOf('@') !== 0 && !isFormatLink) {
+                    var ele = element.find("a[href='" + url + "']:not([data-id])");
+                    ele.addClass('loading');
+                    pluginPopupModal.insertLink(url, source, function() {
+                        formatInsertLinkToCutLink(url);
+                        ele.removeClass('loading');
+                    });
+                }
+            }
+
+            pluginTooltip.setStatusChangeUrl(false, settings.editor.container);
+
+            if (url && url.length > 0 && url.indexOf('@') !== 0 && !isFormatLink) {
+                quill.setSelection(quill.getLength() + 1, Quill.sources.API);
+            }
+            quill.focus();
+        };
+
+        var editorSelectionChange = function(range, oldRange, source) {
+            if (range) {
+                editorSelection = range.index;
+                initPluginTooltip();
+            }
+        }
+
+        var formatInsertLinkToCutLink = function(url) {
+            var link = $('#' + settings.editor.container).find(`.ql-editor a[href='${url}']:last`);
+            pluginTooltip.setLink(link).cutLink();
+            return true;
+        }
+
+        var resetEmbed = function () {
+            element.find('.attachment-buttons .ql-video').removeAttr('disabled');
+            pluginPopupModal.deleteEmbed();
+        }
+
+        this.quoteComment = function(comment) {
+            let range = quill.getSelection(true);
+            //range.index
+            let line = quill.getLine(range.index);
+            let currentLineIndex = line[1];
+            let lineRange = line[0].cache.length;
+            let rangeToLast = lineRange - currentLineIndex;
+            let appendIndex = rangeToLast + range.index;
+
+            let offset = range.index + 1;
+            if (currentLineIndex <= 1) {
+                quill.insertText(range.index, '\n', Quill.sources.USER);
+                offset = range.index;
+            } else {
+                quill.insertText(range.index, '\n', Quill.sources.USER);
+                quill.insertText(range.index, '\n', Quill.sources.USER);
+            }
+            // return;
+            quill.insertEmbed(
+                // quill.getLength(),
+                offset,
+                //Insert the TemplateMarker in the same range as the cursor is
+
+                'commentQuote',
+                //This is the name of the Block
+
+                {
+                    user_id: comment.user_id,
+                    username: comment.username,
+                    comment_id: comment.comment_id,
+                    content: comment.text,
+                    created_date: comment.created_date
+                }
+                //These are the variables to enter
+            );
+            //quill.insertText(appendIndex + 1, '\n', Quill.sources.USER);
+            quill.setSelection(appendIndex + 2, Quill.sources.USER);
+            quill.focus();
+            instance.formatDate();
+        };
+
+        this.mention = function(user, message) {
+            let text = typeof(message) !== 'undefined' ? message : '';
+            let range = quill.getSelection(true),
+                pos = range.index;
+            let content = $(quill.root.innerHTML);
+            if (content.find('.mention[data-value="' + user.username + '"]').length > 0) {
+                quill.insertText(pos, text, Quill.sources.USER);
+            } else {
+                quill.insertEmbed(pos, 'mention', {
+                    denotationChar: '@',
+                    value: user.username
+                }, Quill.sources.USER);
+                quill.insertText(pos + 1, ' ' + text, Quill.sources.USER);
+            }
+
+            if (text !== '') {
+                quill.setSelection(quill.getLength() + 2, Quill.sources.USER);
+            } else {
+                quill.setSelection(quill.getLength() + 1, Quill.sources.USER);
+            }
+            quill.focus();
+        };
+
+        this.formatDate = function() {
+            $('.moment-time-diff[data-date]').each(function() {
+                let self = $(this),
+                    date = new Date(self.data('date') * 1000);
+                if (date) {
+                    let diffDays = moment().locale('vi').diff(date, 'days'),
+                        diffHours = moment().locale('vi').diff(date, 'hours'),
+                        diffMinutes = moment().locale('vi').diff(date, 'minutes'),
+                        diffSeconds = moment().locale('vi').diff(date, 'seconds');
+
+                    let diff = '', postFix = '';
+                    if (diffDays > 0) {
+                        diff = diffDays;
+                        postFix = 'ngày'
+                    } else if (diffHours > 0) {
+                        diff = diffHours;
+                        postFix = 'giờ'
+                    } else if (diffMinutes > 0) {
+                        diff = diffMinutes;
+                        postFix = 'phút'
+                    } else {
+                        diff = diffSeconds;
+                        postFix = 'giây'
+                    }
+                    self.html(`${diff} ${postFix} trước`).removeAttr('data-date');
+                }
+            });
+        };
+
+        this.destroy = function(focus, resetContent) {
+            $('.V2-comment-frm .send-new-comment').addClass('hidden');
+
+            let li = element.parent();
+            let ul = li.parent();
+            $('.quill-editor-header', element).removeClass('reply-comment')
+                .removeClass('edit-comment')
+                .addClass('new-comment');
+
+            $('.quill-editor-header h2', element).html(settings.title.new);
+            element.removeAttr('rel');
+
+            $(`.V2-comment-frm[link-id="${settings.link_id}"]`).append(element);
+
+            resetEmbed();
+
+            if (settings.edit == false) {
+                if (typeof resetContent == 'undefined' || resetContent == true) {
+                    quill.setContents('', Quill.sources.SILENT);
+                    settings.parent_comment_id = 0;
+                }
+
+                if (settings.reply == true) {
+                    // remove li editor reply
+                    li.remove();
+                    if (ul.find('li').length == 0) {
+                        // remove ul if have not reply comment
+                        ul.remove();
+                    }
+                }
+            }
+
+            if (typeof settings.callback.destroy == 'function') {
+                settings.callback.destroy();
+                if (typeof resetContent == 'undefined' || resetContent == true) {
+                    quill.setContents('', Quill.sources.SILENT);
+                    settings.parent_comment_id = 0;
+                }
+            }
+            if (typeof(focus) !== 'undefined' && focus == true) {
+                quill.focus();
+            }
+
+            attachments = [];
+            $('#' + settings.attachments + '-items', element).html('')
+                                        .nextAll('.image-list').remove();
+
+            settings.parent_id = 0;
+            settings.comment_id = 0;
+            settings.reply = false;
+            settings.edit = false;
+            settings.parent_id = 0;
+        };
+
+        this.getLinkId = function() {
+            return settings.link_id;
+        };
+
+        this.setLinkId = function(id) {
+            settings.link_id = id;
+            return this;
+        };
+
+        this.setTokenAttachment = function(tokenAttach) {
+            tokenAttachment = tokenAttach;
+        };
+
+        this.setEditMode = function(value, destroyCallback) {
+            settings.edit = value;
+            if (typeof destroyCallback == 'function') {
+                settings.callback.destroy = destroyCallback;
+            }
+            return this;
+        };
+
+        this.setCommentId = function(id) {
+            settings.comment_id = id;
+            return this;
+        };
+
+        this.setAttachments = function(attachments) {
+            settings.content.attachments = attachments;
+            $(`#${settings.attachments}-items`).html('')
+                            .nextAll('.image-list').remove();
+            return this;
+        };
+
+        this.setCommentContents = function(data, html) {
+            settings.content.data = data;
+            settings.content.html = html;
+            return this;
+        };
+
+        this.setMobile = function(value) {
+            settings.mobile = value;
+            return this;
+        };
+
+        this.setParentComment = function(id) {
+            settings.parent_comment_id = id;
+        };
+
+        this.getParentComment = function(id) {
+            return settings.parent_comment_id;
+        };
+
+        this.setReplyComment = function(id, resetContent) {
+            settings.reply = true;
+            if (id == 0) {
+                settings.reply = false;
+            }
+            settings.parent_id = id;
+
+            if (settings.edit == true) {
+                $('.quill-editor-header', element)
+                    .removeClass('new-comment')
+                    .removeClass('reply-comment')
+                    .addClass('edit-comment');
+
+                $('.quill-editor-header h2', element).html(settings.title.edit);
+                element.attr('rel', 'edit');
+            } else if (settings.reply == true) {
+                $('.quill-editor-header', element)
+                    .removeClass('new-comment')
+                    .removeClass('edit-comment')
+                    .addClass('reply-comment');
+
+                $('.quill-editor-header h2', element).html(settings.title.reply);
+                element.attr('rel', 'reply');
+
+                if (typeof(resetContent) == 'undefined' || resetContent == true) {
+                    quill.setContents('', Quill.sources.USER);
+                }
+                attachments = [];
+                $(`#${settings.attachments}-items`).html('');
+            } else {
+                $('.quill-editor-header', element)
+                    .removeClass('edit-comment')
+                    .removeClass('reply-comment')
+                    .addClass('new-comment');
+
+                $('.quill-editor-header h2', element).html(settings.title.new);
+                element.removeAttr('rel', 'reply');
+            }
+            if (id > 0) {
+                try {
+                    quill.setSelection(0, Quill.sources.USER);
+                } catch (e) {
+                    console.log(e);
+                }
+                quill.focus();
+
+                $('.V2-comment-frm .send-new-comment').removeClass('hidden');
+            }
+            return this;
+        };
+
+        this.getReplyComment = function() {
+            return settings.parent_id;
+        };
+
+        this.insertAttachments = function(newAttachment, callback) {
+            attachments.push(newAttachment);
+
+            //trigger attachment actions:
+            setup.attachmentDisableActions();
+            setup.attachmentActions();
+
+            if (typeof callback === 'function') {
+                callback();
+            }
+        };
+
+        this.deleteAttachmentEmbed = function() {
+            attachments = attachments.filter(obj => {
+                if (obj.type != 'embed') {
+                    return obj;
+                }
+            })
+        };
+
+        // this.updateAttachmentStatus = function(id, newStatus) {
+        //     attachments = attachments.filter(obj => {
+        //         if (obj.id == id) {
+        //             obj.is_pending = newStatus;
+        //         }
+        //         return obj;
+        //     })
+        // };
+
+        this.updateAttachmentField = function(id, field, newValue) {
+            attachments = attachments.filter(obj => {
+                if (obj.id == id) {
+                    obj[field] = newValue;
+                }
+                return obj;
+            })
+        };
+
+        this.updateAttachmentById = function(id, data, callback) {
+            var keys = Object.keys(data);
+            var values = Object.values(data);
+            attachments = attachments.filter(obj => {
+                if (obj.id == id) {
+                    for (let i = 0; i < keys.length; i++) {
+                        obj[keys[i]] = values[i];
+                    }
+                }
+                return obj;
+            });
+
+            //trigger attachment actions:
+            setup.attachmentDisableActions();
+            setup.attachmentActions();
+
+            if (typeof callback === 'function') {
+                callback();
+            }
+        }
+
+        this.deleteAttachmentbyId = function(id) {
+            attachments = attachments.filter(obj => {
+                if (obj.id != id) {
+                    return obj;
+                }
+            })
+        };
+
+        this.getAttachmentValue = function(id) {
+            let attachment = attachments.find(obj => {
+                if (obj.id == id) {
+                    return obj;
+                }
+            })
+
+            return attachment;
+        };
+
+        this.getAttachmentContainer = function() {
+            return settings.attachments;
+        };
+
+        this.setTokenDefaultUser = function(user) {
+            tokenDefaultUser = user;
+            return this;
+        };
+
+        this.attach = function(resetContent) {
+            if (linkhayLinkIdPrev !== settings.link_id) {
+                getMentionUsers();
+            }
+
+            //quill.setContents('', Quill.sources.USER);
+            if (settings.edit == true) {
+                let li = element.closest('li');
+                if (li !== null) {
+                    li.find('.V2-comment-header').removeClass('hidden');
+                    li.find('.V2-comment-body').removeClass('hidden');
+                    li.find('.attachments-container-items').removeClass('hidden');
+                    li.find('.V2-comment-footer').removeClass('hidden')
+                }
+                $(`.V2-comment-item[data-comment-id=${settings.comment_id}] .V2-comment-rc`).append(element);
+            } else {
+
+                if ($(`.V2-comment-frm[link-id=${settings.link_id}]`).find('.quill-linkhay-editor').length > 0) {
+                    return false;
+                }
+                $(`.V2-comment-frm[link-id=${settings.link_id}]`).append(element);
+            }
+
+            if (null == pluginTooltip) {
+                initPluginTooltip();
+            }
+
+            //const bqBreak = quill.getModule('smartBreaker');
+
+            if (typeof resetContent !== 'undefined' && resetContent == true) {
+                if (settings.content.data != null && settings.content.data.length > 0) {
+                    quill.setContents(settings.content.data, Quill.sources.API);
+                } else if (settings.content.html != null && settings.content.html.length > 0) {
+                    let div = $('<div/>').html(settings.content.html);
+                    quill.setText(div.text(), Quill.sources.API);
+                } else {
+                    quill.setContents('');
+                }
+            }
+
+            if (settings.edit == true || settings.reply == true) {
+                quill.setSelection(quill.getLength(), Quill.sources.USER);
+                quill.focus();
+            }
+
+            attachments = [];
+            if (settings.content.attachments) {
+                for (let i=0; i < settings.content.attachments.length; i++) {
+                    instance.insertAttachments(settings.content.attachments[i]);
+                }
+                setup.renderAttachments();
+                setup.attachmentDisableActions();
+                setup.attachmentActions();
+            }
+
+            this.formatDate();
+
+            //setup.actions();
+        };
+
+        this.resetEmbed = function() {
+            resetEmbed();
+
+            return this;
+        }
+
+        this.stickerGifInitActions = function() {
+            setup.stickerGifDisableActions();
+            setup.stickerGifActions();
+        }
+
+        this.insertQuickImage = function(src, hash) {
+            if (typeof(src) == 'undefined' || typeof(hash) == 'undefined') {
+                return;
+            }
+
+            const id = new Date().getTime();
+            let imageRender = `<div class="image-list" id='${id}'>
+                <div>
+                    <img class="attach-image" src='${src}' data-hash="${hash}">
+                    <div class="delete-attach-img">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="32" height="32" rx="16" fill="black" fill-opacity="0.7"/>
+                        <path d="M9.33337 12C9.33337 11.6319 9.63185 11.3334 10 11.3334H22C22.3682 11.3334 22.6667 11.6319 22.6667 12C22.6667 12.3682 22.3682 12.6667 22 12.6667H10C9.63185 12.6667 9.33337 12.3682 9.33337 12Z" fill="white"/>
+                        <path fill-rule="evenodd" d="M14.6666 9.99996C14.4898 9.99996 14.3202 10.0702 14.1952 10.1952C14.0702 10.3202 14 10.4898 14 10.6666V11.3333H18V10.6666C18 10.4898 17.9297 10.3202 17.8047 10.1952C17.6797 10.0702 17.5101 9.99996 17.3333 9.99996H14.6666ZM19.3333 11.3333V10.6666C19.3333 10.1362 19.1226 9.62748 18.7475 9.25241C18.3724 8.87734 17.8637 8.66663 17.3333 8.66663H14.6666C14.1362 8.66663 13.6275 8.87734 13.2524 9.25241C12.8773 9.62748 12.6666 10.1362 12.6666 10.6666V11.3333H11.3333C10.9651 11.3333 10.6666 11.6318 10.6666 12V21.3333C10.6666 21.8637 10.8773 22.3724 11.2524 22.7475C11.6275 23.1226 12.1362 23.3333 12.6666 23.3333H19.3333C19.8637 23.3333 20.3724 23.1226 20.7475 22.7475C21.1226 22.3724 21.3333 21.8637 21.3333 21.3333V12C21.3333 11.6318 21.0348 11.3333 20.6666 11.3333H19.3333ZM12 12.6666V21.3333C12 21.5101 12.0702 21.6797 12.1952 21.8047C12.3202 21.9297 12.4898 22 12.6666 22H19.3333C19.5101 22 19.6797 21.9297 19.8047 21.8047C19.9297 21.6797 20 21.5101 20 21.3333V12.6666H12Z" fill="white"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>`;
+            $('#' + settings.attachments + '-items').append(imageRender);
+            let attachmentObj = {
+                type : 'image',
+                id : id,
+                src : src,
+                is_pending: 0,
+                hash: hash
+            };
+            instance.insertAttachments(attachmentObj);
+        }
+
+        File.prototype.convertToBase64 = function (callback) {
+            var reader = new FileReader();
+            reader.onloadend = function (e) {
+                callback(e.target.result, e.target.error);
+            };
+            reader.readAsDataURL(this);
+        };
+
+        return this.initialize();
+    };
+})(jQuery, window, document);

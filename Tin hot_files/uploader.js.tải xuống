@@ -1,0 +1,922 @@
+/**
+ * OSECORE
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the GNU General Public License version 3
+ * that is bundled with this package in the file LICENSE.txt.
+ * It is also available through the world-wide-web at this URL:
+ * http://www.gnu.org/licenses/gpl-3.0.html
+ * If you did not receive a copy of the license and are unable to
+ * obtain it through the world-wide-web, please send an email
+ * to license@osecore.com so we can send you a copy immediately.
+ *
+ * DISCLAIMER
+ *
+ * Do not edit or add to this file if you wish to upgrade OSECORE to newer
+ * versions in the future. If you wish to customize OSECORE for your
+ * needs please refer to http://www.osecore.com for more information.
+ *
+ * @copyright	Copyright (C) 2011 by Sang Le Tuan (http://www.osecore.com). All rights reserved.
+ * @license     http://www.gnu.org/licenses/gpl-3.0.html GNU General Public License version 3
+ * @author      Sang Le Tuan - batsatla@gmail.com
+ */
+
+(function($) {
+    $.event.props.push('dataTransfer');
+    
+    $.osc_uploader = {};
+
+    try {
+        if (!$.osc_uploader._drop_outside_disabled) {
+            $(document).bind('dragover', function(e){
+                if (e.dataTransfer){
+                    e.dataTransfer.dropEffect = 'none';
+                    e.preventDefault(); 
+                }           
+            });
+            
+            $.osc_uploader._drop_outside_disabled = true; 
+        }
+    } catch(e) {}
+    
+    function OSC_Uploader(container, options) {
+        this._xhrSupported = function() {
+            var input = document.createElement('input');
+            input.type = 'file';        
+    
+            return ('multiple' in input && typeof File != "undefined" && typeof (new XMLHttpRequest()).upload != "undefined");       
+        }
+        
+        this._createUploadHandler = function(){
+            if(this._xhrSupported()){           
+                return {
+                    add : '_xhrAdd',
+                    get_name : '_xhrGetName',
+                    get_size : '_xhrGetSize',
+                    upload : '_xhrUpload'
+                };                        
+            } else {  
+                return {
+                    add : '_frmAdd',
+                    get_name : '_frmGetName',
+                    get_size : '_frmGetSize',
+                    upload : '_frmUpload'
+                };     
+            }
+        }
+        
+        this._preventLeaveInProgress = function(){
+            var self = this;
+                    
+            $(window).bind('beforeunload', function(e){              
+                if (!self.queue.length){
+                    return;
+                }
+                
+                var message = '';
+
+                e.returnValue = message;
+                // for webkit
+                return message;
+            });       
+        }
+        
+        this._renderInput = function() {
+            this.input = $.createElement(
+                'input', {
+                    type : 'file',
+                    tabIndex: -1
+                }, {                    
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    fontFamily: 'Arial',
+                    fontSize: '118px',
+                    margin: 0,
+                    padding: 0,
+                    cursor: 'pointer',
+                    opacity: 0
+                },
+                $('.mrk-input-container', this.container)[0]);
+        
+            if ((this.max_files - this.uploaded_files) > 1 && this._xhrSupported()) {
+                $(this.input).attr('multiple', 'multiple');
+            }
+
+            var self = this;
+            
+            $(this.input).bind('change', function(e) {
+                self._inputChangeHook(e);
+            }).bind('mouseover', function(e) {
+                self._inputMouseOverHook(e);
+            }).bind('mouseout', function(e) {
+                self._inputMouseOutHook(e);
+            }).bind('focus', function(e) {
+                self._inputFocusHook(e);
+            }).bind('blur', function(e) {
+                self._inputBlurHook(e);
+            });
+        }
+        
+        this._inputMouseOverHook = function(e) {
+            try {
+                this.renderer.buttonMouseOverHook(e);
+            } catch(e) {}
+        }
+        
+        this._inputMouseOutHook = function(e) {
+            try {
+                this.renderer.buttonMouseOutHook(e);    
+            } catch(e) {}
+        }
+        
+        this._inputFocusHook = function(e) {
+            try {
+                this.renderer.buttonFocusHook(e);  
+            } catch(e) {}
+        }
+        
+        this._inputBlurHook = function(e) {
+            try {
+                this.renderer.buttonBlurHook(e);    
+            } catch(e) {}
+        }
+        
+        this._inputChangeHook = function(e) {      
+            if (this._xhrSupported()){
+                this._addMulti(this.input.files);                   
+            } else {             
+                this._add(this.input);                      
+            }
+            
+            this._resetInput();   
+        }
+        
+        this._resetInput = function() {  
+            try {
+                $(this.input).remove();
+            } catch(e) {}
+            
+            this._inputFocusHook();            
+            this._renderInput();
+        }
+        
+        this._isValidFileDrag = function(e){
+            try {
+                var data = e.dataTransfer;
+                return data && data.effectAllowed != 'none' && (data.files || (!$.browser.webkit && data.types.contains && data.types.contains('Files')));
+            } catch(e) {
+                return false;
+            }
+        }
+        
+        this._dragOverHook = function(e) {
+            if (!this._isValidFileDrag(e)) {
+                return;
+            }
+            
+            if (this.drag_drop_area_hide_timeout){
+                clearTimeout(this.drag_drop_area_hide_timeout);
+            }
+            
+            if (this.drag_drop_area == e.target || $(this.drag_drop_area).has(e.target).length){
+                var effect = e.dataTransfer.effectAllowed;
+                
+                if (effect == 'move' || effect == 'linkMove'){
+                    e.dataTransfer.dropEffect = 'move';
+                } else {                    
+                    e.dataTransfer.dropEffect = 'copy';
+                }   
+                
+                this.renderer.dragDropAreaEnterHook();
+                    
+                e.stopPropagation();                                                           
+            } else {
+                if(this.uploaderAvailable()) {
+                    this._in_drag_drop = true;
+                    
+                    try {
+                        this.renderer.showDragDropArea();
+                        this.renderer.hideUploadButton();    
+                    } catch(e) {}
+                }
+                        
+                e.dataTransfer.dropEffect = 'none';    
+            }
+                                
+            e.preventDefault();        
+        }
+        
+        this._dragEnterHook = function(e) {          
+            if (!this._isValidFileDrag(e)) {
+                return;
+            }
+            
+            try {
+                this.renderer.dragDropAreaEnterHook();
+            } catch(e) {}
+                        
+            e.stopPropagation();
+        }
+        
+        this._dragLeaveHook = function(e) {
+            if (!this._isValidFileDrag(e)) {
+                return;
+            }
+            
+            if (this.drag_drop_area == e.target || $(this.drag_drop_area).has(e.target).length){             
+                try {
+                    this.renderer.dragDropAreaLeaveHook();
+                } catch(e) {}
+            
+                e.stopPropagation();                                       
+            } else {                                        
+                if (this.drag_drop_area_hide_timeout){
+                    clearTimeout(this.drag_drop_area_hide_timeout);
+                }
+                    
+                var self = this;
+                    
+                this.drag_drop_area_hide_timeout = setTimeout(function(){
+                    self._in_drag_drop = false;
+                    
+                    if(self.uploaderAvailable()) {
+                        try {
+                            self.renderer.hideDragDropArea();
+                            self.renderer.showUploadButton(); 
+                        } catch(e) {}
+                    }                        
+                }, 77);
+            }
+        }
+        
+        this._dropHook = function(e) {
+            this._in_drag_drop = false;          
+            
+            try {
+                this.renderer.dragDropAreaLeaveHook();
+                this.renderer.hideDragDropArea();
+                this.renderer.showUploadButton(); 
+            } catch(e) {}
+            
+            if (!this._isValidFileDrag(e)) {
+                return;
+            }
+                        
+            e.preventDefault();
+            
+            this._addMulti(e.dataTransfer.files); 
+        }
+        
+        this._setupDragDrop = function() {            
+            var self = this;
+            
+            $(document).bind('dragenter', function(e){
+                e.preventDefault();
+            }).bind('dragover', function(e) {
+                self._dragOverHook( e);
+            }).bind('dragleave', function(e) {
+                self._dragLeaveHook(e);
+            });
+            
+            $(this.drag_drop_area).bind('drop', function(e){
+                self._dropHook(e);
+            });
+        }
+        
+        this._addMulti = function(files){
+            for (var i=0; i<files.length; i++){
+                this._add(files[i]);        
+            }        
+        }
+        
+        this._add = function(file) {
+            if ( !this._validateFile(file)){
+                return;
+            }
+            
+            if(this.queue.length + this.uploaded_files >= this.max_files) {
+                return;
+            }
+            
+            var info = {
+                data : file,
+                loaded : 0
+            };
+            
+            this[this.handler.add](info);
+            
+            if(info === false) {
+                return;
+            }
+            
+            var id = this.files.push(info) - 1;
+            
+            this.queue.push(id);
+            
+            var item = this.renderer.addQueue(id);
+            
+            if(typeof item == 'object' && item !== null) {
+                var self = this;
+                $('.mrk-action', item).bind('click', function() {
+                    self.removeQueue(id);
+                });
+            }
+                                
+            this.switchOnOffUploader();            
+            this._upload(id);
+        }
+        
+        this.getFileName = function(id, format) {
+            var name = this[this.handler.get_name](id);            
+            return format ? this._formatFileName(name) : name;
+        }
+        
+        this._formatFileName = function(name){
+            if (name.length > 33){
+                name = name.slice(0, 19) + '...' + name.slice(-13);    
+            }
+            
+            return name;
+        }
+        
+        this.getFileSize = function(id, format) {
+            var size = this[this.handler.get_size](id);            
+            return format ? $.formatSize(size) : size;
+        }
+        
+        this.removeQueue = function(id) {
+            alert('Remove queue: ' + id);
+            this._dequeue(id);
+        }
+        
+        this._uploadProgressHook = function(id, total, loaded) {
+            this.files[id].loaded = loaded;
+
+            try {
+                this.renderer.uploadProgressHook(id, total, loaded);
+            } catch(e) {}
+        }
+        
+        this._uploadCompleteHook = function(id, response) {
+            var success = true;
+            
+            try {
+                success = this.callback.upload_complete(response);
+            } catch(e) {}
+            
+            if(success !== false) {
+                this.uploaded_files ++;
+                
+                var item;
+            
+                try {
+                    item = this.renderer.uploadCompleteHook(id, response);
+                } catch(e) {}
+            
+                if(typeof item == 'object' && item !== null) {
+                    var self = this;
+                    $('.mrk-action', item).unbind('click').bind('click', function() {
+                        self.remove(id);
+                    });
+                }
+            } else {
+                try {
+                    this.renderer.remove(id);
+                } catch(e) {}
+            }
+            
+            this.files[id] = null;
+            
+            this._dequeue(id);  
+        }
+        
+        this.remove = function(id) {
+            this.uploaded_files --;
+            
+            try {
+                this.renderer.remove(id);
+            } catch(e) {}
+            
+            this.switchOnOffUploader();
+        }
+        
+        this._validateFile = function(file){
+            var name, size;
+        
+            if (file.value){
+                name = file.value.replace(/.*(\/|\\)/, "");
+            } else {
+                name = file.fileName != null ? file.fileName : file.name;
+                size = file.fileSize != null ? file.fileSize : file.size;
+            }
+                    
+            if (! this._isAllowedExtension(name)){
+                this._error('typeError', name);
+                return false;
+            
+            } else if (size === 0){            
+                this._error('emptyError', name);
+                return false;
+                                                     
+            } else if (size && this.size_limit && size > this.size_limit){            
+                this._error('sizeError', name);
+                return false;
+                        
+            } else if (size && size < this.min_size_limit){
+                this._error('minSizeError', name);
+                return false;            
+            }
+        
+            return true;                
+        }
+        
+        this._isAllowedExtension = function(fileName) {
+            var ext = (-1 !== fileName.indexOf('.')) ? fileName.replace(/.*[.]/, '').toLowerCase() : '';
+            var allowed = this.allowed_extensions;
+        
+            if (!allowed.length){
+                return true;
+            }        
+        
+            for (var i=0; i<allowed.length; i++){
+                if (allowed[i].toLowerCase() == ext){
+                    return true;
+                }    
+            }
+        
+            return false;
+        }
+        
+        this._upload = function(id){
+            if (this.total_connections < this.max_connections) {
+                this.total_connections ++;
+                
+                var item;
+                
+                try {
+                    item = this.renderer.uploadHook(id, this._xhrSupported());
+                } catch(e) {}
+                
+                if(typeof item == 'object' && item !== null) {
+                    var self = this;
+                    $('.mrk-action', item).unbind('click').bind('click', function(){
+                        self.cancelUpload(id);
+                    });
+                }
+            
+                try {
+                    this.callback.upload_fire({name : this.getFileName(id), size : this.getFileSize(id, true)});
+                } catch(e) {}
+                
+                this[this.handler.upload](id);
+            }
+        }
+        
+        this.uploaderAvailable = function() {
+            return this.queue.length + this.uploaded_files < this.max_files;
+        }
+        
+        this.switchOnOffUploader = function() {
+            if(this.uploaderAvailable()) {
+                try {
+                    if(this._in_drag_drop && this.drag_drop_area) {
+                        this.renderer.showDragDropArea();                      
+                    } else {
+                        this.renderer.showUploadButton();
+                    }
+                } catch(e) {}
+            } else {
+                try {
+                    if(this._in_drag_drop && this.drag_drop_area) {
+                        this.renderer.hideDragDropArea();   
+                    } else {
+                        this.renderer.hideUploadButton();         
+                    }
+                } catch(e) {}
+            }
+        }
+        
+        this.cancel = function(id) {
+            this[this.handler_func.cancel](id);
+            
+            this._dequeue(id);
+        }
+        
+        this.cancelAll = function(){
+            for (var i=0; i<this.queue.length; i++){
+                this.cancel(i);
+            }
+        }
+        
+        this._dequeue = function(id){
+            var i = $.indexOf(this.queue, id);
+            
+            this.queue.splice(i, 1);
+            
+            this.total_connections --;
+                                
+            if (this.queue.length > 0 && this.queue.length > this.total_connections){
+                this._upload(this.queue[this.total_connections]);
+            }
+            
+            this.switchOnOffUploader();
+        }
+        
+        this._getProcessUrl = function(additional_params) {
+            // build query string
+            var server_process_url = this.process_url;
+                
+            var request_params = {};
+            
+            if(this.request_params) {
+                $.extend(request_params, this.request_params);
+            }
+                
+            if(additional_params) {
+                $.extend(request_params, additional_params);
+            }
+                
+            request_params = this._formatForPost(request_params);
+            
+            server_process_url += server_process_url.indexOf('?') > -1 ? '&' : '?';
+            server_process_url += request_params;
+            
+            return server_process_url;
+        }
+        
+        this._xhrAdd = function(info) {
+            if (!(info.data instanceof File)){
+                info = false;
+            }
+        }
+        
+        this._xhrGetName = function(id){        
+            var file = this.files[id].data;            
+            return file.fileName != null ? file.fileName : file.name;       
+        }
+        
+        this._xhrGetSize = function(id){        
+            var file = this.files[id].data;            
+            return file.fileSize != null ? file.fileSize : file.size;
+        }
+        
+        this._xhrGetLoaded = function(id){
+            return this.files[id].loaded || 0; 
+        }
+        
+        this._xhrUpload = function(id) {
+            var file = this.files[id].data;
+            var name = this._xhrGetName(id);
+            var size = this._xhrGetSize(id);
+                                                
+            var xhr = this.files[id].xhr = new XMLHttpRequest();
+            var self = this;
+                                        
+            xhr.upload.onprogress = function(e){
+                if (e.lengthComputable) {
+                    self._uploadProgressHook(id, e.total, e.loaded);
+                }
+            };
+
+            xhr.onreadystatechange = function(){            
+                if (xhr.readyState == 4){
+                    self._xhrUploadCompleteHook(id);                    
+                }
+            };
+
+            xhr.open('POST', this._getProcessUrl({_xhrfile_ : name}), true);
+            
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.setRequestHeader('X-File-Name', encodeURIComponent(name));
+            xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+            
+            xhr.send(file);
+        }
+        
+        this._xhrUploadCompleteHook = function(id) {
+            if (!this.files[id]){
+                return;
+            }
+        
+            var xhr = this.files[id].xhr;
+                
+            var response = null;
+                
+            if (xhr.status == 200) {
+                response = xhr.responseText;
+            }
+                
+            this._uploadCompleteHook(id, response);                  
+        }
+        
+        this._xhrCancelHook = function(id){
+            this._cancelHook(id);
+        
+            if (this.files[id].xhr){
+                this.files[id].xhr.abort();                          
+            }
+        
+            this.files[id] = null;
+        }
+        
+        this._frmAdd = function(info) {
+            $(info.data).attr('name', 'file');
+                
+            try {
+                $(info.data).remove();
+            } catch(e) {}
+        }
+        
+        this._frmGetName = function(id){
+            return this.files[id].data.value.replace(/.*(\/|\\)/, "");
+        }
+        
+        this._frmGetSize = function(id) {
+            return false;
+        }
+        
+        this._frmGetIframeId = function(id) {
+            return this.index + '-upload-helper-' + id;
+        }
+        
+        this._frmCancelHook = function(id){
+            this._cancelHook(id);
+        
+            this.files[id] = null;     
+
+            var iframe = $('#' + this._frmGetIframeId(id), this.container);
+            
+            if (iframe[0]){
+                try {
+                    iframe.attr('src', 'javascript:false;');
+                    iframe.remove();
+                } catch(e) {}
+            }
+        }     
+        
+        this._frmUpload = function(id) {
+            var file = this.files[id].data;
+
+            var file_name = this._frmGetName(id);
+            
+            var helper_id = this._frmGetIframeId(id);            
+            
+            var iframe = $.createElement('iframe', {
+                src : 'javascript:false;', 
+                name : helper_id, 
+                id : helper_id
+            }, {
+                display : 'none'
+            }, this.container);
+            
+            var form = $.createElement(
+                'form', {
+                    method : 'post',
+                    enctype : 'multipart/form-data',
+                    action : this._getProcessUrl(),
+                    target : helper_id
+                }, {
+                    display : 'none'
+                }, document.body);
+            
+            form.appendChild(file);
+
+            var self = this;
+            
+            $(iframe).bind('load', function(e) {
+                self._frmUploadCompleteHook(id, iframe);
+            });
+
+            form.submit();
+            
+            $(form).remove();
+        }
+        
+        this._frmUploadCompleteHook = function(id, iframe) {
+            var doc = iframe.contentDocument ? iframe.contentDocument: iframe.contentWindow.document;
+            var response = doc.body.innerHTML;
+            
+            this._uploadCompleteHook(id, name, response);
+                
+            this.files[id] = null; 
+            this._dequeue(id);
+            
+            setTimeout(function(){
+                $(iframe).remove();
+            }, 1);
+        }
+        
+        this._formatForPost = function(arrayfields) {
+            var str = '';
+
+            try {
+                for(var i in arrayfields) {
+                    str += i + '=' + this._encodeUrl(arrayfields[i]) + '&';
+                }
+            }
+            catch(e) {}
+
+            return str;
+        }
+        
+        this._encodeUrl = function(url) {
+            url = url.toString();
+
+            var regcheck = url.match(/[\x90-\xFF]/g);
+
+            if(regcheck) {
+                for(var i = 0; i < i.length; i ++) {
+                    url = url.replace( regcheck[i], '%u00' + ( regcheck[i].charCodeAt(0) & 0xFF ).toString(16).toUpperCase() );
+                }
+            }
+
+            return escape(url).replace( /\+/g, "%2B" );
+        }
+        
+        if(typeof options != 'object') {
+            options = {};
+        }
+        
+        options.index = container.id;
+        options.container = container;
+		
+        this.index = null;
+        this.container = null;
+        this.renderer = null;
+        this.process_url = '';
+        this.input = null;
+        this.name = null;
+        this.drag_drop_area = null;
+        this.handler = {};
+        this.callback = {
+            upload_fire : null,
+            upload_progress : null,
+            upload_complete : null
+        };
+        this.max_connections = 5;
+        this.total_connections = 0;
+        this.max_files = 1;
+        this.uploaded_files = 0;
+        this.files = [];
+        this.queue = [];
+        this.allowed_extensions = [];
+        this._in_drag_drop = false;
+        this.drag_drop_area_hide_timeout = null;
+        
+        $.extend(this, options);
+        
+        this.handler = this._createUploadHandler();
+        
+        if(typeof this.renderer != 'object' || this.renderer === null) {
+            this.renderer = new OSC_Uploader_Renderer(); 
+        }
+        
+        this.renderer.setInstance(this).render();
+        this.file_list = $('.mrk-file-list')[0];
+        
+        this._preventLeaveInProgress();  
+        this._renderInput();
+        
+        var drag_drop_area = $('.mrk-drag-drop-area', this.container);
+        
+        if(drag_drop_area[0]) {
+            this.drag_drop_area = drag_drop_area[0];
+            this._setupDragDrop();
+        }
+    }
+    
+    OSC_Uploader_Renderer = function() {    
+        this.setInstance = function(inst) {
+            this.inst = inst;
+            return this;
+        }
+        
+        this.render = function() {
+            $(this.inst.container).addClass('osc-uploader').html('<div class="upload-btn mrk-input-container">' + this.lang.click_to_upload + '</div><div class="drag-drop-area mrk-drag-drop-area"><span>' + this.lang.drop_file_here + '</span></div><ul class="file-list mrk-file-list simple"></ul>');
+            this.btn = $('.mrk-input-container', this.inst.container)[0];
+            this.file_list = $('.mrk-file-list', this.inst.container)[0];
+            this.drag_drop_area = $('.mrk-drag-drop-area', this.inst.container)[0];
+            return this;
+        }
+        
+        this.buttonMouseOverHook = function(e) {            
+            $(this.btn).addClass('hover');            
+        }
+        
+        this.buttonMouseOutHook = function(e) {
+            $(this.btn).removeClass('hover');             
+        }
+        
+        this.buttonFocusHook = function(e) {
+            $(this.btn).addClass('focus');          
+        }
+        
+        this.buttonBlurHook = function(e) {
+            $(this.btn).removeClass('focus');          
+        }
+        
+        this.addQueue = function(id) { }
+        
+        this.uploadHook = function(id, xhr_supported) {
+            var item = {
+                progress : null,
+                xhr_supported : xhr_supported
+            };
+            
+            item.root = $.createElement('li', {
+                className : 'mrk-file-item', 
+                idx : id
+            }, {}, this.file_list);
+                /*
+            item.action = $.createElement('span', {
+                innerHTML : '<span>Cancel</span>', 
+                className : 'action mrk-action'
+            }, {}, item.root);*/
+                                
+            item.progress = $.createElement('div', {
+                className : 'progress mrk-progress'
+            }, {}, item.root);
+                                
+            $.createElement('div', {}, {}, item.progress);
+            
+            this.items[id] = item;
+            
+            return item.root;
+        }
+        
+        this.uploadProgressHook = function(id, total, loaded) {
+            $($('div', this.items[id].progress)).css('width', (loaded*100/total) + '%');            
+        }
+        
+        this.uploadCompleteHook = function(id, response) {
+            this.remove(id);
+        }
+        
+        this.remove = function(id) {
+            $(this.items[id].root).remove();
+            this.items[id] = null;
+        }
+        
+        this.hideUploadButton = function() {
+            $(this.btn).hide();
+        }
+        
+        this.showUploadButton = function() {
+            $(this.btn).show();
+        }
+        
+        this.showDragDropArea = function() {
+            $(this.drag_drop_area).show();                      
+        }
+        
+        this.hideDragDropArea = function() {
+            $(this.drag_drop_area).hide();             
+        }
+        
+        this.dragDropAreaEnterHook = function() {
+            $(this.drag_drop_area).addClass('drop-active');
+        }
+        
+        this.dragDropAreaLeaveHook = function() {
+            $(this.drag_drop_area).removeClass('drop-active');         
+        }
+        
+        this.inst = null;
+        this.btn = null;
+        this.drag_drop_area = null;
+        this.items = {};
+        this.file_list = null;
+        this.lang = {click_to_upload : 'Click to upload', drop_file_here : 'Drop files here to upload'};
+    }
+    
+    $.OSC_Uploader_Renderer = OSC_Uploader_Renderer;
+	
+    $.fn.osc_uploader = function() {
+        var func = null;
+        
+        if(arguments.length > 0 && typeof arguments[0] == 'string') {
+            func = arguments[0];
+        }
+        
+        if(func) {
+            var opts = [];
+        
+            for(var x = 1; x < arguments.length; x ++) {
+                opts.push(arguments[x]);
+            }
+        } else {
+            opts = arguments[0];
+        }
+               
+        return this.each(function() {
+            if(func) {
+                var instance = $(this).data('osc-uploader');
+                instance[func].apply(instance, opts);
+            } else {
+                $(this).data('osc-uploader', new OSC_Uploader(this, opts));
+            }
+        });
+    };
+})(jQuery)
